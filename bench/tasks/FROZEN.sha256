@@ -1,0 +1,20 @@
+# 冻结清单（G-R12-2 用 sha256sum -c 逐文件校验；# 开头为注释，-c 会忽略）
+# 12 个任务 yaml + 两个断言器（尺子）+ 状态快照器（R13 的仪器）= 15 个文件
+# 2026-10-28：从 14 行扩到 15 行，加入 scripts/status_snapshot.py。
+# 理由：只钉任务与断言器、不钉状态快照器，等于允许「把 --check 改成恒返回 0」而门禁全绿
+#       （G-R13-1 变哑，实测可复现）。仪器被削弱必须让门禁知道。
+81f3a3be46849fe7b73c66c574e8cbe4cd70c48a0bf743a2b5228dec08690262  bench/tasks/T01.yaml
+be6acf010a00d1d28ae336caf1bfba489008a0052b0925598172c7c805ce5b00  bench/tasks/T02.yaml
+839f6dd21cad255b8ebfa68e69ad80b91856db398fcf341b3d2894ed4d69baa0  bench/tasks/T03.yaml
+7e4072b026875047fa396133a3d1fc34908c7068734ce42478a8cb1a4f841e4e  bench/tasks/T04.yaml
+f42316311b64b6937fcd1370f77c26cef548a5893947afc95e410fa6fee35e18  bench/tasks/T05.yaml
+c9e986e268b687c839a0164661a00e598afd40b5a9ebd0d838aad96c7fc137a7  bench/tasks/T06.yaml
+96d3cdaf2341eac0d0ffe62d96f957d2be856a7c6953c09095d9e6b475f636c5  bench/tasks/T07.yaml
+0ac5913ad7d3cb4df1fa6f28ebcbe123e26b992e52e71d9afa2a6ed0861b7816  bench/tasks/T08.yaml
+f206b4e395a4b6b5c464e022d68fbd26a8ae45e4b4573e9d332b62c4ac544496  bench/tasks/T09.yaml
+68e9829b00c2e690eda9a57ebe03172c933310253418a813b4e1aeafcfd3944e  bench/tasks/T10.yaml
+63a034ab30491740b05d45517533546095bf32d2a0f5d76b445fe5983ffdbcf7  bench/tasks/T11.yaml
+a97191baf1c205d6aeefdd979b1a21cf83c8ce1f8f164642cc44ce2ff226e604  bench/tasks/T12.yaml
+14c0b2ac689b5ce5be0d94db7641c3640f7527e34d5dc26ae63bfdd76dcd20f1  bench/assert_lib.py
+062afa745c3fa381a2a7b04f743ff87be452e7b5b85171d65d7826b87faa48b2  bench/selftest_expect.py
+c85df05199c2be9d8c55f6589ee3e3ffd4cc7df42c4050b14aef8060dabcca76  scripts/status_snapshot.py

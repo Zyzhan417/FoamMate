@@ -1,0 +1,13 @@
+id: T11
+class: batch              # build|modify|batch
+difficulty: D3
+prompt: "9 例，汇总 max(U) 与迭代步数到 CSV。"
+reference_tutorial: incompressibleFluid/cavity   # 已用 R1 配方①核对存在
+allowed_files: ["system/*", "0/U"]
+gates: [G1, G2, G3, G4, G5]      # README §6 四门 + 本框架 G5 范围门
+g2b: diagnostic                  # 辅助信号，不进 status（README §6）
+expect: pass                  # pass | refuse（T12 负对照必须 refuse）
+expect_values:                  # 断言：actual 从产物读 / expect 来自需求 / tol 是谓词宽度
+  - {"kind": "dict", "file": "constant/physicalProperties", "key": "nu", "expect": 2e-05, "tol": 1e-12}
+expect_values_note: |
+  除字典断言外，还要求落盘含 9 行的汇总 CSV（judge 单独查行数，不进 expect_values）。

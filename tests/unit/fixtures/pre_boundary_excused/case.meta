@@ -1,0 +1,17 @@
+{
+  "source": "incompressibleFluid/cavity",
+  "derived_at": "2026-10-28T00:00:00+08:00",
+  "spec": {
+    "requirement": "网格加密，每个方向翻倍",
+    "geometry": "二维方腔 0.1 m x 0.1 m x 0.01 m（tutorial cavity 派生）",
+    "fluid": "nu = 1e-05 m2/s，laminar",
+    "boundaries": "movingWall 顶盖 1 m/s，其余 noSlip，frontAndBack empty"
+  },
+  "changes": [
+    "网格从 20x20x1 加密到 40x40x1：任务要求每个方向翻倍，blockMeshDict 的 blocks 行改了"
+  ],
+  "allowed_files": [
+    "system/*",
+    "0/*"
+  ]
+}

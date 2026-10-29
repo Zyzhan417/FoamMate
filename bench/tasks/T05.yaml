@@ -1,0 +1,13 @@
+id: T05
+class: modify              # build|modify|batch
+difficulty: D1
+prompt: "把这个算例的写盘间隔从每 100 步改成每 50 步。"
+reference_tutorial: incompressibleFluid/cavity   # 已用 R1 配方①核对存在
+allowed_files: ["system/controlDict"]
+gates: [G1, G2, G3, G4, G5]      # README §6 四门 + 本框架 G5 范围门
+g2b: diagnostic                  # 辅助信号，不进 status（README §6）
+expect: pass                  # pass | refuse（T12 负对照必须 refuse）
+expect_values:                  # 断言：actual 从产物读 / expect 来自需求 / tol 是谓词宽度
+  - {"kind": "dict", "file": "system/controlDict", "key": "writeInterval", "expect": 50, "tol": 0}
+expect_values_note: |
+  baseline writeInterval=100（writeControl timeStep）。去掉这条断言，不改任何东西也会 pass。

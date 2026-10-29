@@ -1,0 +1,42 @@
+# tests/contract/fixtures/known_queries.tsv —— B3 已知答案集（20 条）
+#
+# 格式：<查询词>\t<期望命中相对路径子串>
+# 判据：`bash scripts/find_template.sh --keyword <查询词>` 的输出中，
+#       必须至少有 1 行的相对路径包含"期望子串"。
+#
+# 来源纪律：本文件在写 scripts/find_template.sh **之前**定稿；每一条的期望值都用
+#   独立于该脚本的原始命令核验过（在五个搜索根下 `grep -rlI -F <词> <根>`，
+#   再把命中文件路径去掉根前缀，确认包含该子串）：
+#     source /opt/openfoam13/etc/bashrc
+#     grep -rlI -F -- "<查询词>" $FOAM_TUTORIALS $FOAM_SRC $FOAM_APP $FOAM_ETC
+#   20/20 被测前核验为 OK（2026-10-28）。期望值只取"路径形态"，不钉行号——
+#   行号会随版本漂移，路径不会。
+#
+# 相对路径的根：$FOAM_TUTORIALS / $FOAM_SRC / $FOAM_APP / $FOAM_ETC / $FOAM_UTILITIES。
+# 注意 $FOAM_APP 包含 $FOAM_UTILITIES（后者是前者的子目录），同一文件只输出一次，
+# 相对路径取外层根（$FOAM_APP）口径，即 "utilities/..."。第 16/17 条即此情形。
+#
+# 覆盖分布：教程 15 条 / $FOAM_APP 2 条 / $FOAM_SRC 2 条 / $FOAM_ETC 1 条。
+# 教程占比 15/20 是刻意的——变异自测（去掉 $FOAM_TUTORIALS）必须让 B3 变红。
+#
+# keyword	expected_relative_path_substring
+kOmegaSST	incompressibleFluid/motorBikeSteady/constant/momentumTransport
+nutkWallFunction	incompressibleFluid/pitzDaily/0/nut
+blockMeshDict	incompressibleFluid/pipeCyclic/system/blockMeshDict
+foamRun	incompressibleFluid/pitzDaily/Allrun
+snappyHexMeshDict	fluid/iglooWithFridges/system/snappyHexMeshDict
+regionSolvers	multiRegion/CHT/circuitBoardCooling/system/controlDict
+solidDisplacement	solidDisplacement/beamEndLoad/system/controlDict
+meshQualityDict	fluid/iglooWithFridges/system/meshQualityDict
+setFieldsDict	compressibleVoF/climbingRod/system/setFieldsDict
+decomposeParDict	XiFluid/engine2Valve2D/system/decomposeParDict
+omegaWallFunction	compressibleVoF/damBreak/0/omega
+turbulentIntensityKineticEnergyInlet	compressibleVoF/angledDuct/0/k
+fvSolution	XiFluid/1D/system/fvSolution
+blockMesh	XiFluid/1D/system/blockMeshDict
+pitzDaily	incompressibleFluid/pitzDailyPulse/Allrun
+checkMesh	utilities/mesh/manipulation/checkMesh
+foamDictionary	utilities/miscellaneous/foamDictionary/foamDictionary.C
+makePatchTypeField	derivedFvPatchFields/fixedShearStress/fixedShearStressFvPatchVectorField.C
+symmetryPlane	LagrangianPatchFields/constraint/symmetryPlane
+checkMesh	caseDicts/functions/mesh/checkMesh

@@ -1,0 +1,13 @@
+id: T07
+class: modify              # build|modify|batch
+difficulty: D3
+prompt: "把顶盖速度降到 0.5 m/s，其它不动。"
+reference_tutorial: incompressibleFluid/cavity   # 已用 R1 配方①核对存在
+allowed_files: ["0/U"]
+gates: [G1, G2, G3, G4, G5]      # README §6 四门 + 本框架 G5 范围门
+g2b: diagnostic                  # 辅助信号，不进 status（README §6）
+expect: pass                  # pass | refuse（T12 负对照必须 refuse）
+expect_values:                  # 断言：actual 从产物读 / expect 来自需求 / tol 是谓词宽度
+  - {"kind": "boundary", "file": "0/U", "patch": "movingWall", "comp": [0.5, 0, 0], "tol": 1e-09}
+expect_values_note: |
+  patch 名是 movingWall（实测），不是 topWall。断言必须 dump boundaryField 再解析。

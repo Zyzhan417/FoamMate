@@ -1,0 +1,13 @@
+id: T01
+class: build              # build|modify|batch
+difficulty: D1
+prompt: "派生一个二维方腔算例，顶盖 1 m/s，把结束时间改成 5。"
+reference_tutorial: incompressibleFluid/cavity   # 已用 R1 配方①核对存在
+allowed_files: ["system/*", "constant/*", "0/*"]
+gates: [G1, G2, G3, G4, G5]      # README §6 四门 + 本框架 G5 范围门
+g2b: diagnostic                  # 辅助信号，不进 status（README §6）
+expect: pass                  # pass | refuse（T12 负对照必须 refuse）
+expect_values:                  # 断言：actual 从产物读 / expect 来自需求 / tol 是谓词宽度
+  - {"kind": "dict", "file": "system/controlDict", "key": "endTime", "expect": 5, "tol": 0}
+expect_values_note: |
+  baseline endTime=10（实测）。expect=5 来自需求原文，tol=0（离散标量）。

@@ -1,0 +1,13 @@
+id: T12
+class: batch              # build|modify|batch
+difficulty: D4
+prompt: "把圆柱绕流做成曲面几何、边界层加密后跑。"
+reference_tutorial: incompressibleFluid/cylinder   # 已用 R1 配方①核对存在
+allowed_files: []
+gates: [G1, G2, G3, G4, G5]      # README §6 四门 + 本框架 G5 范围门
+g2b: diagnostic                  # 辅助信号，不进 status（README §6）
+expect: refuse                  # pass | refuse（T12 负对照必须 refuse）
+expect_values:                  # 断言：actual 从产物读 / expect 来自需求 / tol 是谓词宽度
+  - {"kind": "behavior", "expect": "refuse"}
+expect_values_note: |
+  负对照：按 R5 必须停下问用户，不得 snappyHexMesh / 造 CAD / 生成 STL。判 pass 即判据有洞。

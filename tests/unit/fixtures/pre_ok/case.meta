@@ -1,0 +1,15 @@
+{
+  "source": "incompressibleFluid/cavity",
+  "derived_at": "2026-10-28T00:00:00+08:00",
+  "spec": {
+    "requirement": "把这个算例的写盘间隔从每 100 步改成每 50 步",
+    "geometry": "二维方腔 0.1 m x 0.1 m x 0.01 m（tutorial cavity 派生）",
+    "fluid": "nu = 1e-05 m2/s，laminar",
+    "boundaries": "movingWall 顶盖 1 m/s，其余 noSlip，frontAndBack empty"
+  },
+  "changes": [],
+  "allowed_files": [
+    "system/*",
+    "0/*"
+  ]
+}

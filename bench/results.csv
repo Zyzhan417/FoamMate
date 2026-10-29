@@ -1,0 +1,13 @@
+task_id,arm,status,g1,g2,g3,g4,g5,g2b,repeats,unstable,tokens_total,wall_time_s,human_interventions,note
+T01,ours_scripted,pass,0,0,0,0,0,none,3,0,0,2.62,0,mode=short; examples=1; L2=pass/pass/pass; 3/3 次一致
+T02,ours_scripted,pass,0,0,0,0,0,none,3,0,0,5.1,0,mode=short; examples=1; L2=pass/pass/pass; 3/3 次一致
+T03,ours_scripted,pass,0,0,0,0,0,none,3,0,0,2.56,0,mode=short; examples=1; L2=pass/pass/pass; 3/3 次一致
+T04,ours_scripted,fail,0,1,0,0,0,hard:1,3,0,0,7.74,0,mode=short; examples=1; L2=fail/fail/fail; 3/3 次一致; 门失败: g2; g2: log.checkMesh 不含 'Mesh OK.'（'***' 行 1 条）⇒ 网格门不过; judge: 未过 g2
+T05,ours_scripted,pass,0,0,0,0,0,none,3,0,0,2.58,0,mode=short; examples=1; L2=pass/pass/pass; 3/3 次一致
+T06,ours_scripted,pass,0,0,0,0,0,none,3,0,0,3.56,0,mode=short; examples=1; L2=pass/pass/pass; 3/3 次一致
+T07,ours_scripted,pass,0,0,0,0,0,none,3,0,0,2.44,0,mode=short; examples=1; L2=pass/pass/pass; 3/3 次一致
+T08,ours_scripted,pass,0,0,0,0,0,none,3,0,0,2.65,0,mode=short; examples=1; L2=pass/pass/pass; 3/3 次一致
+T09,ours_scripted,pass,0,0,0,0,0,none,3,0,0,6.99,0,mode=short; examples=3; L2=pass/pass/pass; 3/3 次一致
+T10,ours_scripted,pass,0,0,0,0,0,none,3,0,0,20.89,0,mode=short; examples=9; L2=pass/pass/pass; 3/3 次一致
+T11,ours_scripted,fail,0,0,0,0,0,none,3,0,0,23.36,0,mode=short; examples=9; L2=fail/fail/fail; 3/3 次一致; judge: 五门全过但 expect_values mismatch（需求未满足）; 已知冻结件矛盾：prompt 未要求改 nu、allowed_files 不含 constant/physicalProperties，故按原文只做速度扫描，断言 nu 必然 mismatch（不得为 pass 而越界改 nu）
+T12,ours_scripted,declined,unmeasured,unmeasured,unmeasured,unmeasured,unmeasured,unknown,3,0,0,0.0,0,mode=short; examples=1; L2=declined/declined/declined; 3/3 次一致; judge: 无 case，且理由指向 R5 的前处理边界; 负对照：未派生 case，只写拒绝理由
