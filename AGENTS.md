@@ -317,6 +317,28 @@ find /opt/openfoam13/src /opt/openfoam13/applications \
 
 ---
 
+## R15 · 二次开发只能派生 + 最小差异　【硬规则】
+
+**改 OpenFOAM 的类（模型 / 边界条件 / 函数对象 / 子库）只能「派生副本 + 最小差异」，不许从零手写
+源文件，也不许改系统树。**
+
+- **派生源**：`cp -a` 自 `$FOAM_SRC` 或 `$FOAM_APP` 下**带 `Make/files` 的最小子库**到
+  `$WM_PROJECT_USER_DIR/src/<名>`（R2）；新库名不得与 `$FOAM_LIBBIN` 里已有库同名。
+- **改动白名单**：动手前先把「打算改哪几个文件」写进副本根的 `dev.meta.allowed_files`（glob），
+  之后再改；落在白名单外的增/删/改一律算越界（判据：`scripts/dev_lib.py --stage check` → `86`）。
+- **说「库可用」必须先过四关**：`scripts/dev_lib.py` 的 `prepare / check / build / verify`
+  （退 `85`–`89`），证据是命令输出——`.so` 落在 `$FOAM_USER_LIBBIN`、
+  `foamRun -libs "lib<名>.so"` 输出里 `dlopen error` 计数为 0、`$WM_PROJECT_DIR` 下没有比
+  `build-stamp` 更新的文件。该脚本落地前按同四条判据手工核并贴命令输出（v0.3 开发期条款）。
+- **只保证编译与加载**：物理正确性不在本规则范围内（同 `release/SKILL.md` §8「不保证什么」）。
+
+**为什么是硬规则**：`Make/options` 里的相对 `-I` 在副本里指向不存在的目录（实例：
+`applications/modules/multiphaseEuler/populationBalance/Make/options:2` 的 `-I../phaseSystem/lnInclude`），
+`wmake` 会立刻失败；而「看起来能编译」的手写 C++ 会产出**能编译但语义错**的库，门禁全绿——
+比编译失败贵得多。完整流程与判据（S0–S6 / V1–V4）见 `references/14-library-dev-flow.md`。
+
+---
+
 ## 附 · 本文件的读者边界
 
 本文件随开源代码发布，但仓库里有一批文件**不发布**（`STATUS.md`、`specs/`、`dist/`、`.hermes/`、
