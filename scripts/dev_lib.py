@@ -441,8 +441,115 @@ def stage_check(args: argparse.Namespace) -> int:
     }, EX_OK)
 
 
+# ---------------------------------------------------------------------------
+# build（V3）：call wmake / parse log / check .so
+# ---------------------------------------------------------------------------
+
+#: gcc 的错误行形态：`file:12:5: error: msg` / `file:12: error: msg`（列号可选）
+GCC_ERR = re.compile(
+    r"^(?P<file>[^:\n]+):(?P<line>\d+):(?:(?P<col>\d+):)?\s*(?:fatal )?error:\s*(?P<msg>.+)$",
+    re.M,
+)
+
+
+def first_error(log_text: str) -> dict | None:
+    """日志里第一条 gcc 形态的错误（`wmake error: ...` 这种没有 `file:line:` 的不算）。"""
+    m = GCC_ERR.search(log_text)
+    if m is None:
+        return None
+    return {"file": m.group("file"), "line": int(m.group("line")), "msg": m.group("msg").strip()}
+
+
+def error_lines(log_text: str) -> int:
+    """`grep -c 'error:'` 的行数语义（不是出现次数：一行只算一次，与手工核对一致）。"""
+    return sum(1 for line in log_text.splitlines() if "error:" in line)
+
+
+def _as_text(value: str | bytes | None) -> str:
+    """TimeoutExpired 里带出来的可能是 bytes 也可能是 None（text=True 时通常是部分文本）。"""
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", "replace")
+    return value
+
+
 def stage_build(args: argparse.Namespace) -> int:
-    _fail(EX_SPEC, "未实现")
+    """V3：`wmake -j N libso` 必须退 0、日志 `error:` 计数为 0、`.so` 落在 `$FOAM_USER_LIBBIN`。
+
+    判据顺序是有讲究的：rc 与 `error:` 计数**各自都不完备**（实测：`wmake libso -j 4` 退 1，
+    反方向也有退 0 但带 error 的），两条一起才闭合；`.so` 在位是第三条，缺了它
+    「上次的产物」会让这道门假绿。
+    """
+    if not args.dest:
+        _usage("--stage build 需要 --dest")
+    if args.timeout < 0:
+        _usage("--timeout 不能为负")
+
+    dest = Path(args.dest).resolve()
+    meta_path = dest / META_NAME
+    if not meta_path.is_file():
+        _fail(EX_SPEC, "缺 dev.meta：这个目录不是 prepare 的产物（先跑 --stage prepare）",
+              dest=str(dest))
+    meta = json.loads(meta_path.read_text(errors="replace"))
+    lib = meta.get("lib_name")
+    if not lib:
+        _fail(EX_SPEC, "dev.meta 里没有 lib_name", dest=str(dest))
+    libbin = _require_env(("FOAM_USER_LIBBIN",))["FOAM_USER_LIBBIN"]
+
+    # 选项必须在 target 之前：T0 实测 `wmake libso -j 4` 退 1（could not change to directory '-j'）
+    cmd = ["wmake", "-j", str(args.jobs), "libso"]
+    if shutil.which(cmd[0]) is None:
+        _fail(EX_BUILD, "PATH 上没有 wmake：先 source $WM_PROJECT_DIR/etc/bashrc",
+              cmd=cmd, timed_out=False, wall_seconds=0.0)
+
+    t0 = time.monotonic()                 # 墙钟只许用 monotonic（time.time() 会写出负值）
+    timed_out = False
+    try:
+        proc = subprocess.run(cmd, cwd=str(dest), capture_output=True,
+                              text=True, timeout=args.timeout)
+        stdout, stderr, rc = proc.stdout or "", proc.stderr or "", proc.returncode
+    except subprocess.TimeoutExpired as exc:
+        timed_out, rc = True, None
+        stdout, stderr = _as_text(exc.stdout), _as_text(exc.stderr)
+    wall = round(time.monotonic() - t0, 3)
+
+    log = stdout + stderr
+    log_path = dest / WMAKE_LOG
+    log_path.write_text(log)               # 失败也落盘：不落盘就无法事后定位
+    errors = error_lines(log)
+    err_first = first_error(log)
+    common = {"wmake_cmd": cmd, "wmake_rc": rc, "wall_seconds": wall, "log": str(log_path)}
+
+    if timed_out:
+        _fail(EX_BUILD, f"wmake 超过 --timeout {args.timeout}s，已杀掉；改 --timeout 或查环境",
+              timed_out=True, **common)
+    if rc != 0:
+        _fail(EX_BUILD, f"wmake 退出 {rc}", timed_out=False, error_count=errors,
+              error_first=err_first, **common)
+    if errors > 0:
+        _fail(EX_BUILD,
+              f"wmake 退 0 但日志里有 {errors} 行 error:（不信退出码，只信日志行）",
+              timed_out=False, error_count=errors, error_first=err_first, **common)
+    so = libbin / f"lib{lib}.so"
+    if not so.is_file():
+        _fail(EX_BUILD, "wmake 成功但 .so 不在 $FOAM_USER_LIBBIN",
+              timed_out=False, error_count=errors, so_path=str(so), **common)
+
+    build = {
+        "lib_name": lib,
+        "so_path": str(so),
+        "so_sha256": sha256_bytes(so.read_bytes()),
+        "so_size": so.stat().st_size,
+        "wmake_cmd": cmd,
+        "wmake_rc": rc,
+        "wall_seconds": wall,
+        "error_first": err_first,
+    }
+    (dest / BUILD_NAME).write_text(
+        json.dumps(build, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    )
+    _emit({"ok": True, "stage": "build", "dest": str(dest), **build}, EX_OK)
 
 
 def stage_verify(args: argparse.Namespace) -> int:

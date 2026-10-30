@@ -320,3 +320,111 @@ def test_check_rejects_tampered_dev_meta(tmp_path):
     assert p.returncode == 86, p.stdout + p.stderr
     reason = json.loads(p.stdout)["reason"]
     assert "dev.meta" in reason and "meta_self_sha256" in reason, reason
+
+
+# ---------------------------------------------------------------------------
+# T5 · build（V3）
+#
+# 全部用 PATH 前置的假 `wmake`（`fixtures/dev/bin/wmake`）：L1 判的是「我们怎么调用、
+# 怎么解析结果」，不是「OpenFOAM 会不会编译」。四条用例各盯一个分支：成功落 build.json、
+# rc≠0、rc==0 但 error: 计数/产物不对、超时。
+# ---------------------------------------------------------------------------
+
+
+def _fake_bin(env: dict[str, str], **vars_: str | None) -> dict[str, str]:
+    """把 `fixtures/dev/bin` 前置到 PATH（`wmake`/`foamRun` 都从 PATH 取），再注入桩的环境变量。"""
+    e = dict(env)
+    e["PATH"] = str(FIXTURES / "bin") + os.pathsep + os.environ.get("PATH", "")
+    e.update({k: v for k, v in vars_.items() if v is not None})
+    return e
+
+
+def _build(env: dict[str, str], dest: Path, extra: list[str] | None = None):
+    return run(["--stage", "build", "--dest", str(dest), *(extra or [])], env=env)
+
+
+def test_build_success_writes_build_json(tmp_path):
+    """成功形态：`wmake -j 2 libso`（选项在 target 之前）、日志落盘、build.json 有 so_sha256。"""
+    env, dest = _prepared(tmp_path)
+    so = Path(env["FOAM_USER_LIBBIN"]) / "libdemoMod.so"
+    calls = tmp_path / "wmake.calls"
+    e = _fake_bin(env, FAKE_SO_OUT=str(so), FAKE_WMAKE_LOG=str(calls))
+
+    p = _build(e, dest)
+    assert p.returncode == 0, p.stdout + p.stderr
+
+    # T0 实测：`wmake libso -j 4` 退 1（could not change to directory '-j'）
+    assert calls.read_text().strip() == "-j 2 libso"
+
+    log = (dest / "log.wmake").read_text()
+    assert "making dependency list" in log
+
+    bj = json.loads((dest / "build.json").read_text())
+    assert set(bj) == {"lib_name", "so_path", "so_sha256", "so_size",
+                       "wmake_cmd", "wmake_rc", "wall_seconds", "error_first"}
+    assert bj["lib_name"] == "demoMod"
+    assert bj["so_path"] == str(so)
+    assert bj["so_sha256"] == hashlib.sha256(so.read_bytes()).hexdigest()
+    assert bj["so_size"] == so.stat().st_size
+    assert bj["wmake_cmd"] == ["wmake", "-j", "2", "libso"]
+    assert bj["wmake_rc"] == 0 and bj["error_first"] is None
+    assert bj["wall_seconds"] >= 0
+
+
+def test_build_rejects_nonzero_rc_and_parses_error_line(tmp_path):
+    env, dest = _prepared(tmp_path)
+    e = _fake_bin(env, FAKE_WMAKE_RC="2", FAKE_ERR_FILE="demoModel/demoModel.C")
+
+    p = _build(e, dest)
+    assert p.returncode == 87, p.stdout + p.stderr
+    payload = json.loads(p.stdout)
+    assert payload["wmake_rc"] == 2
+    assert payload["error_first"] == {
+        "file": "demoModel/demoModel.C", "line": 12,
+        "msg": "expected initializer before '}'"}
+    assert not (dest / "build.json").exists(), "构建失败不写 build.json（否则 verify 会拿旧记录假绿）"
+    assert "error:" in (dest / "log.wmake").read_text(), "失败日志必须落盘，否则无法事后诊断"
+
+
+def test_build_rejects_so_outside_user_libbin(tmp_path):
+    """wmake 退 0 但 `.so` 不在 `$FOAM_USER_LIBBIN` → 87（V3 的第三条判据）。"""
+    env, dest = _prepared(tmp_path)
+    elsewhere = tmp_path / "elsewhere" / "libdemoMod.so"
+    elsewhere.parent.mkdir()
+    e = _fake_bin(env, FAKE_SO_OUT=str(elsewhere))
+
+    p = _build(e, dest)
+    assert p.returncode == 87, p.stdout + p.stderr
+    payload = json.loads(p.stdout)
+    assert "FOAM_USER_LIBBIN" in payload["reason"], payload["reason"]
+    assert payload["wmake_rc"] == 0, "退 0 也必须判红：产物不在位就是没构建出可用库"
+    assert not (dest / "build.json").exists()
+
+
+def test_build_rejects_error_in_log_even_if_rc_zero(tmp_path):
+    """退 0 但日志里有 `error:` → 87。**这条是 V3 里唯一「只看 rc 就会假绿」的分支**。"""
+    env, dest = _prepared(tmp_path)
+    so = Path(env["FOAM_USER_LIBBIN"]) / "libdemoMod.so"
+    e = _fake_bin(env, FAKE_SO_OUT=str(so), FAKE_ERR_ALWAYS="1")
+
+    p = _build(e, dest)
+    assert p.returncode == 87, p.stdout + p.stderr
+    payload = json.loads(p.stdout)
+    assert payload["wmake_rc"] == 0, "前提：wmake 自己退 0"
+    assert payload["error_count"] == 1
+    assert payload["error_first"]["line"] == 12
+    assert so.is_file(), "前提：产物在位——所以这条红只能来自 error: 计数"
+    assert not (dest / "build.json").exists()
+
+
+def test_build_reports_timeout(tmp_path):
+    """假桩 sleep + `--timeout 0` → 87 且 `timed_out=true`（墙钟必须是 monotic 差值，不许负）。"""
+    env, dest = _prepared(tmp_path)
+    e = _fake_bin(env, FAKE_SO_OUT=str(Path(env["FOAM_USER_LIBBIN"]) / "libdemoMod.so"),
+                  FAKE_WMAKE_SLEEP="10")
+
+    p = _build(e, dest, ["--timeout", "0"])
+    assert p.returncode == 87, p.stdout + p.stderr
+    payload = json.loads(p.stdout)
+    assert payload["timed_out"] is True
+    assert payload["wall_seconds"] >= 0
