@@ -78,12 +78,13 @@ def test_usage_error_exits_64(name: str):
     )
 
 
-#: 「用户看得懂错在哪」的两种合法形态（二选一即可）：
-#: ① 打用法块（`usage` / `用法`）；② argparse 的 `prog: error: <缺哪个参数>`。
-#: 实测 `scripts/dev_lib.py` 是②（`dev_lib.py: error: the following arguments are required: --stage`），
-#: 它比用法块更直接——直接点名缺哪个选项。判据的实质是「stderr 里有可执行的下一步」，
-#: 不是「必须打用法块」；把②判红会逼人往脚本里加一行没用的 usage dump。
-USAGE_HINTS = ("usage", "用法", "error:")
+#: 「用户看得懂错在哪」的合法形态：必须打出**用法块**（`usage` / `用法`）。
+#:
+#: 2026-10-31 修：本判据曾被一度放宽成「`usage`/`用法`/`error:` 三者有其一」，理由是
+#: `scripts/dev_lib.py` 的 64 分支只打 `prog: error: ...`。那是**尺子被修来迁就实现**：
+#: 放宽后这条与上一条（`stderr` 非空）几乎等价——argparse 的 error 输出恒含 `error:`——
+#: 判据失去区分力。正确修法是把实现补齐（`_Parser.error` 先 `print_usage`），判据不动。
+USAGE_HINTS = ("usage", "用法")
 
 
 @pytest.mark.parametrize("name", SCRIPTS)

@@ -56,9 +56,15 @@ STAGES = ("prepare", "check", "build", "verify")
 
 
 class _Parser(argparse.ArgumentParser):
-    """把 argparse 的用法错误从 2 改成 64（理由同其它模块：2 是 G2 门失败）。"""
+    """把 argparse 的用法错误从 2 改成 64（理由同其它模块：2 是 G2 门失败）。
+
+    覆盖 `error()` 时必须**先打印用法块**再退：argparse 默认实现就是这么做的，
+    只打 `prog: error: <msg>` 会让 `tests/unit/test_exit_codes.py` 的
+    「用法错误要说明错在哪」那条判据失去可判定的对象（2026-10-31 实测）。
+    """
 
     def error(self, message: str) -> None:      # pragma: no cover - argparse 内部
+        self.print_usage(sys.stderr)
         self.exit(EX_USAGE, f"{self.prog}: error: {message}\n")
 
 

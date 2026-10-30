@@ -25,6 +25,7 @@
 
 from __future__ import annotations
 
+import ast
 import re
 import subprocess
 from pathlib import Path
@@ -68,28 +69,37 @@ ALLOWED_NON_COMMENT = {
 
 
 def _docstring_lines(name: str) -> set[int]:
-    """`.py` 文件里落在三引号块内的行号集合（含起止行）。`.sh` 恒为空集。
+    """`.py` 文件里**真 docstring** 所占的行号集合（含起止行）。`.sh` 恒为空集。
 
     为什么要它：判据是「**代码**里不得写死前缀」，而 docstring 是文档——实测
     `scripts/dev_lib.py:566` 有一句散文提到 `/opt/openfoam13`（解释 R2 的基线从哪来）。
     只按「行首是不是 `#`」分类会把它算成写死前缀，于是要么删掉那句解释，要么给它开一个
-    假的豁免数——两种都把判据往宽松的方向挪。按三引号块分类则不挪：代码行仍是 0 容忍。
+    假的豁免数——两种都把判据往宽松的方向挪。
 
-    实现是逐行少数引号奇偶（一行里开+闭算 2，不切换），足以覆盖 `scripts/*.py` 的写法。
+    为什么用 `ast` 而不是数引号（2026-10-31 改）：数三引号的版本会把**任何**三引号块
+    （包括 `X = \"\"\"…\"\"\"` 这种**会参与运行**的字符串字面量）都当成 docstring，
+    于是把人写的前缀藏进一个字符串常量就能过关。`ast` 只认模块/类/函数体的第一句
+    字符串表达式，判据因此不依赖缩进与引号写法。
     """
     if not name.endswith(".py"):
         return set()
-    inside = False
+    try:
+        tree = ast.parse((SCRIPTS / name).read_text(encoding="utf-8"))
+    except SyntaxError:                      # 语法错的文件不归这条测试管（另有入口测试）
+        return set()
     out: set[int] = set()
-    for i, line in enumerate((SCRIPTS / name).read_text(encoding="utf-8").splitlines(), start=1):
-        toggles = line.count('"""') + line.count("'''")
-        if inside:
-            out.add(i)
-            if toggles % 2 == 1:
-                inside = False
-        elif toggles % 2 == 1:
-            inside = True
-            out.add(i)
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        body = getattr(node, "body", [])
+        if not body:
+            continue
+        first = body[0]
+        if not (isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant)
+                and isinstance(first.value.value, str)):
+            continue
+        end = getattr(first, "end_lineno", None) or first.lineno
+        out.update(range(first.lineno, end + 1))
     return out
 
 
