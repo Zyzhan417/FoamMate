@@ -310,6 +310,23 @@ LD_LIBRARY_PATH=$(echo "$LD_LIBRARY_PATH" | tr ':' '\n' | grep -v "scratch/t0/li
 真实模型（47 个 `.C`）**61 s**，超出「每次全量跑」的预算——L2 选 `pairPatchAgglomeration` 这类最小库是对的，
 不要拿 `populationBalance` 当 L2 的样本。
 
+L2 实测（2026-10-31）：`tests/contract/test_dev_lib_build.py` 7 条用例 **12.49 s**
+（`wmake -j 2`，同一派生源）；整个 `tests/contract` 从 45 s 级涨到 **51.32 s**。
+
+### 7.1 两条工具链事实（会误导变异设计的，实测）
+
+1. **gcc 对不存在的 `-I` 目录静默忽略**：`gcc -I/nonexistent-xyz -c foo.c` → **rc=0**。
+   所以「把某条 `-I` 改成 `nope` 让编译失败」这个变异**不一定红**——只有被真正 `#include`
+   的头文件所在目录才算承重。实测：`pairPatchAgglomeration` 的 `Make/options` 里
+   `finiteVolume/lnInclude` → `nope` 仍 `wmake_rc=0`；改成 `meshTools/lnInclude` → `nope`
+   才得到 `wmake_rc=2`、`error_first={'file':'pairPatchAgglomeration.C','line':27,
+   'msg':'meshTools.H: No such file or directory'}`。
+   **变异必须选承重的那一条**，否则「变异自证」是假的。
+2. **`dlopen` 判据的变异要另配一条用例**：把判据从 `dlopen error` 计数改成看退出码，
+   在「库是好的」用例上**两条路都退 0**，全部用例照绿。必须有把 `.so` 覆写成非 ELF
+   （且 `so_sha256` 改成一致，让 sha 门为绿）的用例当捕手，否则这个决定没有门守着。
+   `tests/contract/README.md` 记为 `J-M1`。
+
 ---
 
 ## 8 退出码 ↔ 本文哪一节
