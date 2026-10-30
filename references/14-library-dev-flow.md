@@ -148,6 +148,8 @@ grep -n '^\s*-I' /opt/openfoam13/applications/modules/multiphaseEuler/population
 **判据**：`sha256(当前树)` 与 `dev.meta.manifest` 的差集（`modified` / `added` / `deleted`）
 必须被 `allowed_files`（glob，`fnmatch` 语义，`*` 跨 `/`）全覆盖。任一越界 → `86`，
 payload 里列出越界文件。`dev.meta` 自身被改动也判 `86`（防「改判据绕过判据」，同 `bench` 冻结清单的理由）。
+判据的载体是 `dev.meta` 的第 8 键 `meta_self_sha256`（对其余 7 键的规范序列化取 sha256）：
+`manifest` 按定义不含 `dev.meta` 自己，所以没有这个封印就没有任何地方能记它的哈希，那道门不成立。
 
 **为什么**：`S3` 是本流程里唯一「人写代码」的步骤，也是唯一无法事后判断对错的地方。
 能判的只有范围：**「改了不该改的文件」是可判定的**，「改得对不对」不是。
