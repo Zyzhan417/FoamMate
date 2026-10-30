@@ -5,9 +5,12 @@
 
   prepare  从 $WM_PROJECT_DIR 派生一个子库到 $WM_PROJECT_USER_DIR/src/<name>，
            改写 Make/files 的 LIB 行与 Make/options 里指向副本之外的相对 -I，写 dev.meta。
-  check    把当前树与 dev.meta 里的 sha256 清单比对：改动必须落在 allowed_files 内。
-  build    在副本里 wmake libso，日志写 <dest>/log.wmake，检查 .so 落在 $FOAM_USER_LIBBIN。
-  verify   证明 .so 能被 dlopen（失败时日志里有 dlopen error）；并检查系统树未被改动。
+  check    先验 dev.meta 自身的封印（meta_self_sha256），再把当前树与 manifest 的 sha256
+           清单比对：改动必须落在 allowed_files 内。
+  build    在副本里 `wmake -j N libso`（选项必须在 target 之前），日志写 <dest>/log.wmake，
+           判 rc、判日志里的 error: 计数、判 .so 是否落在 $FOAM_USER_LIBBIN。
+  verify   证明 .so 能被 dlopen（**只判 `dlopen error` 计数，不判退出码**：坏库名实测也退 0）；
+           并检查 $WM_PROJECT_DIR 未被改动（R2）。
 
 退出码：0 全过 / 85 规格不合法 / 86 改动越界 / 87 构建失败或产物缺失 /
         88 加载证明失败 / 89 系统树被改动（R2） / 64 用法错误
@@ -222,7 +225,7 @@ def _now_iso() -> str:
 
 
 # ---------------------------------------------------------------------------
-# 四个 stage（T2 只放桩，T3 起逐段替换）
+# 四个 stage（prepare → check → build → verify 的顺序就是 S2/S4/S5/S6 的顺序）
 # ---------------------------------------------------------------------------
 
 
