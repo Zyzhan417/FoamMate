@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import argparse
+import difflib
 import fnmatch
 import hashlib
 import json
@@ -41,7 +42,12 @@ EX_USAGE = 64         # 用法错误（全仓统一，不用 2）
 
 META_NAME = "dev.meta"
 BUILD_NAME = "build.json"
+VERIFY_NAME = "verify.json"
 WMAKE_LOG = "log.wmake"
+#: `dev.meta` 里记录自身哈希的键（见 meta_self_sha 的注释）
+META_SELF = "meta_self_sha256"
+#: 由脚本自己产出的文件：不属于「改动」，不进 manifest 比对
+GENERATED = frozenset({META_NAME, BUILD_NAME, VERIFY_NAME, WMAKE_LOG})
 
 STAGES = ("prepare", "check", "build", "verify")
 
@@ -158,6 +164,33 @@ def sha256_tree(root: Path) -> tuple[dict[str, str], dict[str, str]]:
         elif p.is_file():
             files[rel] = sha256_bytes(p.read_bytes())
     return files, links
+
+
+def meta_self_sha(meta: dict) -> str:
+    """`dev.meta` 自身的封印：对其余键做**规范序列化**后取 sha256（不含封印本身）。
+
+    为什么要这个：`manifest` 明确不含 `dev.meta`（它自己写不进去自己的哈希），
+    于是「把 allowed_files 加一个 `*`」这种改法可以让 V2 恒绿——**改判据绕过判据**。
+    封印把它变成一个可判定的差值；它防的是误改与随手绕过，不是有决心的本地伪造
+    （算法是公开的，重算一遍封印就能过——本地工具能给的强度只到这里）。
+    """
+    body = {k: v for k, v in meta.items() if k != META_SELF}
+    raw = json.dumps(body, ensure_ascii=False, indent=2, sort_keys=True).encode()
+    return sha256_bytes(raw)
+
+
+def diff_manifest(base: dict[str, str], cur: dict[str, str]) -> dict[str, list[str]]:
+    """清单差集。三个键恒存在（空也是 `[]`），调用方不必再判 None。"""
+    return {
+        "modified": sorted(k for k in base.keys() & cur.keys() if base[k] != cur[k]),
+        "added": sorted(cur.keys() - base.keys()),
+        "deleted": sorted(base.keys() - cur.keys()),
+    }
+
+
+def match_any(rel: str, patterns: list[str]) -> bool:
+    """与 verify_case.sh 的 G5 同语义：fnmatch，`*` 跨 `/`（`fnmatch` 不把 `/` 当分隔符）。"""
+    return any(fnmatch.fnmatch(rel, pat) for pat in patterns)
 
 
 # ---------------------------------------------------------------------------
@@ -288,6 +321,7 @@ def stage_prepare(args: argparse.Namespace) -> int:
         "manifest": dst_files,
         "symlinks": dst_links,
     }
+    meta[META_SELF] = meta_self_sha(meta)     # 封印：只覆盖上面这 7 键
     (dest / META_NAME).write_text(
         json.dumps(meta, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     )
@@ -306,8 +340,105 @@ def stage_prepare(args: argparse.Namespace) -> int:
 
 
 
+def _base_text(rel: str, meta: dict, project_dir: Path | None) -> str | None:
+    """prepare 时该文件应有的文本，用来算 `lines_added`/`lines_removed`。
+
+    两个被改写过的 Make 文件可以从源文件**逆推**（改写是纯函数，且 lib 名记在 meta 里），
+    所以这里的基线与 prepare 当时逐字一致；源树不可读（没 source bashrc）时返回 None。
+    """
+    if project_dir is None:
+        return None
+    src_root = project_dir / (meta.get("system_source") or "")
+    if not meta.get("system_source") or not (src_root / rel).is_file():
+        return None
+    text = (src_root / rel).read_text(errors="replace")
+    if rel == "Make/files":
+        return rewrite_lib_line(text, meta.get("lib_name") or "")[0]
+    if rel == "Make/options":
+        return rewrite_includes(text, src_root)[0]
+    return text
+
+
+def _line_delta(before: str | None, after: str | None) -> tuple[int, int]:
+    """纯信息量（不参与判据）：按行 diff 数 `+`/`-`。基线不可得的一侧按空算。"""
+    a = (before or "").splitlines()
+    b = (after or "").splitlines()
+    added = removed = 0
+    for line in difflib.unified_diff(a, b, lineterm="", n=0):
+        if line.startswith(("+++", "---")):
+            continue
+        if line.startswith("+"):
+            added += 1
+        elif line.startswith("-"):
+            removed += 1
+    return added, removed
+
+
 def stage_check(args: argparse.Namespace) -> int:
-    _fail(EX_SPEC, "未实现")
+    """V2：当前树与 `dev.meta.manifest` 的差集必须被 `allowed_files` 全覆盖。
+
+    顺序：先验封印（**判据自身**），再比树。反过来的话，改 `allowed_files` 就能让后面的
+    比对恒绿——那是「改判据绕过判据」，与 `bench` 冻结清单同一个理由。
+    """
+    if not args.dest:
+        _usage("--stage check 需要 --dest")
+
+    dest = Path(args.dest).resolve()
+    meta_path = dest / META_NAME
+    if not meta_path.is_file():
+        _fail(EX_SPEC, "缺 dev.meta：这个目录不是 prepare 的产物（先跑 --stage prepare）",
+              dest=str(dest))
+    meta = json.loads(meta_path.read_text(errors="replace"))
+
+    sealed = meta.get(META_SELF)
+    if not sealed:
+        _fail(EX_SCOPE,
+              "dev.meta 缺 meta_self_sha256：判据自身无法校验（旧版 prepare 写的或无此键），"
+              "重跑 --stage prepare 让封印落到盘上",
+              dest=str(dest))
+    if meta_self_sha(meta) != sealed:
+        _fail(EX_SCOPE,
+              "dev.meta 自身被改过（meta_self_sha256 不符）：改 allowed_files 等于改判据，"
+              "这条判据失效后 V2 恒绿，所以先判它",
+              dest=str(dest))
+
+    allowed = [p for p in (meta.get("allowed_files") or []) if p]
+    base = {k: v for k, v in (meta.get("manifest") or {}).items() if k not in GENERATED}
+    cur_files, _links = sha256_tree(dest)
+    cur = {k: v for k, v in cur_files.items() if k not in GENERATED}
+
+    changed = diff_manifest(base, cur)
+    # 三个键恒存在（空也给 `[]`）：payload 的形状稳定，调用方不用判 None
+    violations = {kind: [rel for rel in rels if not match_any(rel, allowed)]
+                  for kind, rels in changed.items()}
+    if any(violations.values()):
+        offenders = sorted({rel for rels in violations.values() for rel in rels})
+        _fail(EX_SCOPE,
+              f"改动越界：{len(offenders)} 个文件不在 dev.meta.allowed_files 里"
+              "（改之前先把它们写进 --allowed，否则 V2 挡不住任何东西）",
+              violations=violations, allowed_files=allowed, dest=str(dest))
+
+    project_dir = Path(_env("WM_PROJECT_DIR")).resolve() if _env("WM_PROJECT_DIR") else None
+    lines_added = lines_removed = 0
+    for kind, rels in changed.items():
+        for rel in rels:
+            before = _base_text(rel, meta, project_dir) if kind != "added" else None
+            after = ((dest / rel).read_text(errors="replace")
+                     if kind != "deleted" and (dest / rel).is_file() else None)
+            a, r = _line_delta(before, after)
+            lines_added += a
+            lines_removed += r
+
+    _emit({
+        "ok": True,
+        "stage": "check",
+        "dest": str(dest),
+        "lib": meta.get("lib_name"),
+        "changed": changed,
+        "lines_added": lines_added,
+        "lines_removed": lines_removed,
+        "allowed_files": allowed,
+    }, EX_OK)
 
 
 def stage_build(args: argparse.Namespace) -> int:

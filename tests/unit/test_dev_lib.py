@@ -104,6 +104,18 @@ def _prepare_args(env: dict[str, str], lib: str = "demoMod", extra: list[str] | 
     return args
 
 
+def _prepared(tmp_path: Path, allowed: list[str] | None = None,
+              lib: str = "demoMod") -> tuple[dict[str, str], Path]:
+    """跑完 prepare 的现场：返回 (env, dest)。check/build/verify 的每条用例都从这里起步。"""
+    env = _pseudo_tree(tmp_path)
+    extra: list[str] = []
+    for pat in allowed or []:
+        extra += ["--allowed", pat]
+    p = run(_prepare_args(env, lib=lib, extra=extra), env=env)
+    assert p.returncode == 0, p.stdout + p.stderr
+    return env, Path(env["WM_PROJECT_USER_DIR"]) / "src/lb_mod"
+
+
 # ---------------------------------------------------------------------------
 # T3 · prepare
 # ---------------------------------------------------------------------------
@@ -131,8 +143,15 @@ def test_prepare_rewrites_lib_and_external_include(tmp_path):
     assert opts.count("\\\n") == 4, "行尾续行符数量必须不变（EXE_INC 靠它连成一条）"
 
     meta = json.loads((dest / "dev.meta").read_text())
-    assert set(meta) == {"system_source", "lib_name", "system_lib",
-                         "created_at", "allowed_files", "manifest", "symlinks"}
+    # 8 键 = 计划 §8 的 7 键 + `meta_self_sha256`（封印）。
+    # 第 8 个键是本轮**唯一的 prepare 增量**：`check` 要判「dev.meta 自身被改」，
+    # 而 manifest 按定义不含 dev.meta（它写不进自己的哈希），不记封印就无法判定——
+    # 详见 dev_lib.py 里 meta_self_sha 的注释。除这一键外 prepare 的行为与退出码未变。
+    assert set(meta) == {"system_source", "lib_name", "system_lib", "created_at",
+                         "allowed_files", "manifest", "symlinks", "meta_self_sha256"}
+    sealed = {k: v for k, v in meta.items() if k != "meta_self_sha256"}
+    assert meta["meta_self_sha256"] == hashlib.sha256(
+        json.dumps(sealed, ensure_ascii=False, indent=2, sort_keys=True).encode()).hexdigest()
     assert meta["system_lib"] == "$(FOAM_LIBBIN)/libdemo"
     assert meta["system_source"] == "applications/modules/demo/lb"
     assert meta["lib_name"] == "demoMod"
@@ -215,3 +234,89 @@ def test_prepare_requires_env(tmp_path):
     p = run(["--stage", "prepare", "--source", "x", "--dest", "y", "--lib", "z"], env=env)
     assert p.returncode == 85, p.stdout + p.stderr
     assert "bashrc" in json.loads(p.stdout)["reason"]
+
+
+# ---------------------------------------------------------------------------
+# T4 · check（V2 越界检查）
+#
+# 判据只有一条：`sha256(当前树)` 与 `dev.meta.manifest` 的差集必须被
+# `allowed_files`（fnmatch，`*` 跨 `/`）全覆盖。所以这组用例是「改了什么 → 退什么码」的
+# 一张真值表：声明内的改动必须绿，声明外的四种形态（改/增/删/改判据）必须 86。
+# ---------------------------------------------------------------------------
+
+
+def _check(env: dict[str, str], dest: Path) -> subprocess.CompletedProcess[str]:
+    return run(["--stage", "check", "--dest", str(dest)], env=env)
+
+
+def test_check_allows_declared_edit(tmp_path):
+    env, dest = _prepared(tmp_path, allowed=["demoModel/demoModel.C"])
+    target = dest / "demoModel/demoModel.C"
+    target.write_text(target.read_text() + "// 声明过的文件，可以改\n")
+
+    p = _check(env, dest)
+    assert p.returncode == 0, p.stdout + p.stderr
+    out = json.loads(p.stdout)
+    assert out["ok"] is True and out["stage"] == "check"
+    assert out["changed"] == {"modified": ["demoModel/demoModel.C"], "added": [], "deleted": []}
+    assert (out["lines_added"], out["lines_removed"]) == (1, 0)
+
+
+def test_check_rejects_undeclared_modification(tmp_path):
+    """改了 allowed 之外的文件 → 86，**且 payload 点名那个文件**（不能只说「越界了」）。"""
+    env, dest = _prepared(tmp_path, allowed=["demoModel/demoModel.C"])
+    sneaky = dest / "sub/lnInclude/sub.H"
+    sneaky.write_text(sneaky.read_text() + "// 没声明\n")
+
+    p = _check(env, dest)
+    assert p.returncode == 86, p.stdout + p.stderr
+    payload = json.loads(p.stdout)
+    assert payload["ok"] is False
+    assert payload["violations"]["modified"] == ["sub/lnInclude/sub.H"]
+    assert payload["violations"]["added"] == [] and payload["violations"]["deleted"] == []
+
+
+def test_check_rejects_added_file(tmp_path):
+    env, dest = _prepared(tmp_path, allowed=["demoModel/demoModel.C"])
+    (dest / "demoModel/extra.C").write_text("// 新增但没声明\n")
+
+    p = _check(env, dest)
+    assert p.returncode == 86, p.stdout + p.stderr
+    assert json.loads(p.stdout)["violations"]["added"] == ["demoModel/extra.C"]
+
+
+def test_check_rejects_deleted_file(tmp_path):
+    env, dest = _prepared(tmp_path, allowed=["demoModel/demoModel.C"])
+    (dest / "sub/lnInclude/sub.H").unlink()
+
+    p = _check(env, dest)
+    assert p.returncode == 86, p.stdout + p.stderr
+    assert json.loads(p.stdout)["violations"]["deleted"] == ["sub/lnInclude/sub.H"]
+
+
+def test_check_accepts_declared_new_header(tmp_path):
+    """`--allowed 'demoModel/*.H'` + 新增头文件 → 0：glob 是 fnmatch 语义，`*` 要跨 `/`。"""
+    env, dest = _prepared(tmp_path, allowed=["demoModel/*.H"])
+    (dest / "demoModel/newModel.H").write_text("// 新头文件，声明过\n")
+
+    p = _check(env, dest)
+    assert p.returncode == 0, p.stdout + p.stderr
+    assert json.loads(p.stdout)["changed"]["added"] == ["demoModel/newModel.H"]
+
+
+def test_check_rejects_tampered_dev_meta(tmp_path):
+    """改 `dev.meta` 的 allowed_files = 改判据 → 86（否则「加一个 glob」就绕过 V2）。
+
+    写回时故意用**规范序列化**（indent=2 / sort_keys / 末尾换行，与 prepare 逐字一致），
+    即最不显眼的改法；判据必须靠 `meta_self_sha256` 抓住它，不能靠「格式变了」抓。
+    """
+    env, dest = _prepared(tmp_path, allowed=["demoModel/demoModel.C"])
+    meta = json.loads((dest / "dev.meta").read_text())
+    meta["allowed_files"] = ["*"]                      # 把判据放宽到「什么都允许」
+    (dest / "dev.meta").write_text(
+        json.dumps(meta, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
+
+    p = _check(env, dest)
+    assert p.returncode == 86, p.stdout + p.stderr
+    reason = json.loads(p.stdout)["reason"]
+    assert "dev.meta" in reason and "meta_self_sha256" in reason, reason
