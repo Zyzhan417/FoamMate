@@ -47,6 +47,7 @@ PACKAGE_SCRIPTS = {
     "scripts/fix_case.py",
     "scripts/batch.py",
     "scripts/msh2d_to_foam.py",
+    "scripts/dev_lib.py",
 }
 PACKAGE_DOCS = {"SKILL.md", "QUICKSTART.md", "SCOPE.md"}
 

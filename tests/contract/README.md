@@ -32,3 +32,17 @@ source bashrc → 取回环境、五个根非空校验、"cavity 作派生源"�
 | F-M1 | 「定位不到→declined」改成「默认用 `system/controlDict`」 | `test_f3` |
 | F-M2 | 删掉备份那一步（直接改字典） | `test_f4` |
 | F-M3 | 删掉指纹比对 | `test_f7` |
+
+J（`scripts/dev_lib.py` 的 L2，`test_dev_lib_build.py`，真 wmake + 真 `foamRun -libs`）：
+判据是「`dlopen error` 计数 == 0」，**不是** `foamRun` 的退出码（T0 实测好坏库都退 0）。
+
+| 变异 | 改法 | 必须变红 |
+|---|---|---|
+| J-M1 | `stage_verify` 的 `if dlopen:` 改成 `if rc != 0:`（判据从计数换成退出码） | `test_verify_rejects_undlopenable_so` |
+
+`test_verify_rejects_undlopenable_so` 是 J-M1 的捕手：`.so` 换成非 ELF 垃圾字节并把 `build.json`
+的 `so_sha256`/`so_size` 改成与之一致（sha 门为绿），`foamRun -help` 仍 rc=0、只留一行
+`dlopen error : … file too short`。判 rc 时这条会退 0。
+
+墙钟（2026-10-31，WSL2 / `wmake -j 2` 派生源 `pairPatchAgglomeration`，1 个 `.C`）：
+`pytest tests/contract/test_dev_lib_build.py -q` → **7 passed in 12.49 s**（`/usr/bin/time` WALL 12.76 s）。
