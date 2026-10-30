@@ -27,6 +27,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -428,3 +429,134 @@ def test_build_reports_timeout(tmp_path):
     payload = json.loads(p.stdout)
     assert payload["timed_out"] is True
     assert payload["wall_seconds"] >= 0
+
+
+# ---------------------------------------------------------------------------
+# T6 · verify（V4）
+#
+# 假 `foamRun`（`fixtures/dev/bin/foamRun`）。这里最要紧的一条是
+# `test_verify_ignores_nonzero_rc`：T0 实测**坏库名的退出码也是 0**，所以 rc 不是判据；
+# 反过来「rc≠0 但 dlopen=0」必须照样判绿。它同时是防下一个人"顺手"加 rc 判据的守卫。
+# ---------------------------------------------------------------------------
+
+
+def _stamp_ahead(env: dict[str, str], ahead_s: float = 60.0) -> Path:
+    """造 `build-stamp`：mtime = now + ahead_s。系统树里的文件都比它旧 → R2 判据应绿。"""
+    stamp = Path(env["WM_PROJECT_DIR"]) / "build-stamp"
+    stamp.write_text("")
+    t = time.time() + ahead_s
+    os.utime(stamp, (t, t))
+    return stamp
+
+
+def _built(tmp_path: Path, allowed: list[str] | None = None) -> tuple[dict[str, str], Path]:
+    """prepare → build 全绿后的现场，供 verify 用。"""
+    env, dest = _prepared(tmp_path, allowed=allowed)
+    so = Path(env["FOAM_USER_LIBBIN"]) / "libdemoMod.so"
+    e = _fake_bin(env, FAKE_SO_OUT=str(so))
+    p = _build(e, dest)
+    assert p.returncode == 0, p.stdout + p.stderr
+    return e, dest
+
+
+def _verify(env: dict[str, str], dest: Path, extra: list[str] | None = None):
+    return run(["--stage", "verify", "--dest", str(dest), *(extra or [])], env=env)
+
+
+def test_verify_passes_on_loadable_lib(tmp_path):
+    env, dest = _built(tmp_path)
+    _stamp_ahead(env)
+    calls = tmp_path / "foamrun.calls"
+    e = _fake_bin(env, FAKE_LOAD="ok", FAKE_FOAMRUN_LOG=str(calls))
+
+    p = _verify(e, dest)
+    assert p.returncode == 0, p.stdout + p.stderr
+
+    # 命令形态照 T0 定稿：-libs 的值是 fileNameList，里面的库名必须带引号
+    assert calls.read_text().strip() == '-libs ("libdemoMod.so") -help'
+
+    vj = json.loads((dest / "verify.json").read_text())
+    assert set(vj) == {"so_sha256_ok", "load_cmd", "load_rc", "dlopen_error",
+                       "system_tree_newer", "case_libs_ok"}
+    assert vj["load_cmd"] == ["foamRun", "-libs", '("libdemoMod.so")', "-help"]
+    assert vj["so_sha256_ok"] is True
+    assert vj["load_rc"] == 0 and vj["dlopen_error"] == 0
+    assert vj["system_tree_newer"] == []
+    assert vj["case_libs_ok"] is None, "没给 --case 时必须显式记 null（而不是悄悄 True）"
+
+
+def test_verify_rejects_dlopen_error(tmp_path):
+    """坏库形态：rc=0 但 `dlopen error` 计数 1 → 88（**rc 抓不到这一条**）。"""
+    env, dest = _built(tmp_path)
+    _stamp_ahead(env)
+    e = _fake_bin(env, FAKE_LOAD="bad")
+
+    p = _verify(e, dest)
+    assert p.returncode == 88, p.stdout + p.stderr
+    payload = json.loads(p.stdout)
+    assert payload["load_rc"] == 0, "前提：真实现里坏库也退 0（T0 实测）"
+    assert payload["dlopen_error"] == 1
+    assert "dlopen error" in payload["reason"], payload["reason"]
+    assert payload["load_output"], "失败时必须把输出带给调用方，否则无法诊断"
+    assert not (dest / "verify.json").exists()
+
+
+def test_verify_ignores_nonzero_rc(tmp_path):
+    """`foamRun` 退 1 但输出里没有 `dlopen error` → **仍判 0**。
+
+    这是 T0 实测的直接推论：错误形态（`-libs "libX.so"`）会让好库退 1，
+    判 rc 就会把好库判红。这条用例的存在是为了让「顺手加一句 rc 判据」立刻变红。
+    """
+    env, dest = _built(tmp_path)
+    _stamp_ahead(env)
+    e = _fake_bin(env, FAKE_LOAD="ok", FAKE_FOAMRUN_RC="1")
+
+    p = _verify(e, dest)
+    assert p.returncode == 0, p.stdout + p.stderr
+    vj = json.loads((dest / "verify.json").read_text())
+    assert vj["load_rc"] == 1, "rc 照实记进 verify.json，但**不参与判定**"
+    assert vj["dlopen_error"] == 0
+
+
+def test_verify_rejects_changed_system_tree(tmp_path):
+    """`$WM_PROJECT_DIR/{src,applications}` 下有比 build-stamp 新的文件 → 89（R2）。"""
+    env, dest = _built(tmp_path)
+    _stamp_ahead(env)
+    evil = Path(env["WM_PROJECT_DIR"]) / "applications/modules/demo/lb/evil.C"
+    evil.write_text("// 有人动了系统树\n")
+    t = time.time() + 120
+    os.utime(evil, (t, t))
+    e = _fake_bin(env, FAKE_LOAD="ok")
+
+    p = _verify(e, dest)
+    assert p.returncode == 89, p.stdout + p.stderr
+    payload = json.loads(p.stdout)
+    assert payload["system_tree_newer"] == ["applications/modules/demo/lb/evil.C"]
+    assert not (dest / "verify.json").exists()
+
+
+def test_verify_case_must_declare_libs(tmp_path):
+    """`--case`：controlDict 的 `libs` 里必须有 `lib<名>.so`；缺就 88 并说清怎么加。只读不改。"""
+    env, dest = _built(tmp_path)
+    _stamp_ahead(env)
+    case = tmp_path / "case"
+    (case / "system").mkdir(parents=True)
+    control = case / "system/controlDict"
+    control.write_text(
+        "FoamFile { version 2.0; format ascii; }\n"
+        "solver incompressibleFluid;\n"
+        f'libs ("libdemoMod.so");\n')
+    e = _fake_bin(env, FAKE_LOAD="ok")
+
+    ok = _verify(e, dest, ["--case", str(case)])
+    assert ok.returncode == 0, ok.stdout + ok.stderr
+    assert json.loads((dest / "verify.json").read_text())["case_libs_ok"] is True
+
+    # 缺 libs → 88，reason 里给现成可粘的一行
+    control.write_text("FoamFile { version 2.0; format ascii; }\nsolver incompressibleFluid;\n")
+    missing = _verify(e, dest, ["--case", str(case)])
+    assert missing.returncode == 88, missing.stdout + missing.stderr
+    reason = json.loads(missing.stdout)["reason"]
+    assert 'libs ("libdemoMod.so")' in reason, reason
+    assert control.read_text() == "FoamFile { version 2.0; format ascii; }\nsolver incompressibleFluid;\n", \
+        "verify 只读 case，不许修改它"

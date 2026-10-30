@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# 假 foamRun（L1 用）：只模拟 `foamRun -libs '("libX.so")' -help` 这一条命令形态的输出。
+#   FAKE_LOAD=ok     → 打印用法，**没有** dlopen error
+#   FAKE_LOAD=bad    → stderr 打 dlopen error + could not load
+#   FAKE_FOAMRUN_RC  → 覆盖退出码（默认 0：T0 实测好库名与坏库名**都退 0**）
+# 两个旋钮独立，才能造出「rc≠0 但 dlopen=0」，从而证明 V4 的判据不看 rc。
+printf '%s\n' "$*" >> "${FAKE_FOAMRUN_LOG:-/dev/null}"
+if [ "${FAKE_LOAD:-ok}" = "bad" ]; then
+    printf '%s\n' \
+        '--> FOAM Warning : ' \
+        '    From function void* Foam::dlOpen(const fileName&, bool)' \
+        '    in file POSIX.C at line 1247' \
+        '    dlopen error : libdemoMod.so: cannot open shared object file: No such file or directory' >&2
+    printf '%s\n' '--> FOAM Warning : ' '    could not load "libdemoMod.so"' >&2
+else
+    printf '%s\n' '' 'Usage: foamRun [OPTIONS]' 'options:' \
+        "  -libs '(\"lib1.so\" ... \"libN.so\")'"
+fi
+exit "${FAKE_FOAMRUN_RC:-0}"

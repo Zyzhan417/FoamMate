@@ -552,8 +552,147 @@ def stage_build(args: argparse.Namespace) -> int:
     _emit({"ok": True, "stage": "build", "dest": str(dest), **build}, EX_OK)
 
 
+# ---------------------------------------------------------------------------
+# verify（V4）：dlopen 证明 + 系统树干净
+# ---------------------------------------------------------------------------
+
+
+def system_tree_newer(project_dir: Path) -> list[str]:
+    """`$WM_PROJECT_DIR/{src,applications}` 下 mtime **严格晚于** `build-stamp` 的文件。
+
+    这是 R2 的逆否：`/opt/openfoam13` 不是 git 仓库，编译时间戳是唯一现成基线。
+    `build-stamp` 缺失时返回哨兵串（**不**返回空列表）：没有基线就不能说「没被改过」，
+    返回 `[]` 会让 89 变成恒绿。
+    """
+    stamp = project_dir / "build-stamp"
+    if not stamp.is_file():
+        return ["<build-stamp 缺失>"]
+    t = stamp.stat().st_mtime
+    out: list[str] = []
+    for sub in ("src", "applications"):
+        base = project_dir / sub
+        if not base.is_dir():
+            continue
+        for p in base.rglob("*"):
+            try:
+                if p.is_file() and p.stat().st_mtime > t:
+                    out.append(p.relative_to(project_dir).as_posix())
+                    if len(out) >= 20:
+                        return out
+            except OSError:
+                continue
+    return out
+
+
+#: controlDict 里的 `libs` 条目（先剥注释，再取到第一个 `;` 为止）
+LIBS_ENTRY = re.compile(r"^\s*libs\s+(?P<val>.*?);", re.M | re.S)
+
+
+def case_libs_problem(control_dict: Path, libfile: str) -> str | None:
+    """`--case` 的可选断言：controlDict 的 `libs` 里要有 `lib<名>.so`。**只读**。返回问题描述。"""
+    try:
+        text = control_dict.read_text(errors="replace")
+    except OSError as exc:
+        return f"读不到 {control_dict}：{exc}"
+    body = re.sub(r"/\*.*?\*/", "", re.sub(r"\/\/[^\n]*", "", text), flags=re.S)
+    m = LIBS_ENTRY.search(body)
+    hint = f'libs ("{libfile}");'
+    if m is None:
+        return (f"{control_dict} 里没有 libs 条目：在 FoamFile 块之后加一行 {hint} "
+                f"（只读断言，本脚本不改 case）")
+    if libfile not in m.group("val"):
+        return f"{control_dict} 的 libs 里没有 {libfile}：把 {hint} 补进去（只读断言，本脚本不改 case）"
+    return None
+
+
 def stage_verify(args: argparse.Namespace) -> int:
-    _fail(EX_SPEC, "未实现")
+    """V4：`.so` 与 build.json 一致、`dlopen error` 计数为 0、系统树没被改、（可选）case 声明了本库。
+
+    **不判 `foamRun` 的退出码**：T0 实测好库名与坏库名都退 0，而写错的 `-libs` 形态会让
+    好库退 1——判 rc 既有假绿也有假红。
+    """
+    if not args.dest:
+        _usage("--stage verify 需要 --dest")
+
+    dest = Path(args.dest).resolve()
+    meta_path = dest / META_NAME
+    if not meta_path.is_file():
+        _fail(EX_SPEC, "缺 dev.meta：这个目录不是 prepare 的产物（先跑 --stage prepare）",
+              dest=str(dest))
+    meta = json.loads(meta_path.read_text(errors="replace"))
+    lib = meta.get("lib_name")
+    if not lib:
+        _fail(EX_SPEC, "dev.meta 里没有 lib_name", dest=str(dest))
+
+    build_path = dest / BUILD_NAME
+    if not build_path.is_file():
+        _fail(EX_BUILD, "缺 build.json：还没构建过（先跑 --stage build）", dest=str(dest))
+    build = json.loads(build_path.read_text(errors="replace"))
+
+    envs = _require_env(("FOAM_USER_LIBBIN", "WM_PROJECT_DIR"))
+    libbin, project_dir = envs["FOAM_USER_LIBBIN"], envs["WM_PROJECT_DIR"]
+    libfile = f"lib{lib}.so"
+    so = libbin / libfile
+
+    # 1) 产物与构建记录必须对得上（防「re-build 了别的库」这种假绿）
+    so_sha = sha256_bytes(so.read_bytes()) if so.is_file() else None
+    so_ok = so_sha is not None and so_sha == build.get("so_sha256")
+    if not so_ok:
+        _fail(EX_LOAD,
+              "产物与 build.json 不符：.so 缺失或 sha256 变了（re-build 过？重跑 --stage build）",
+              so_sha256_ok=False, so_path=str(so),
+              so_sha256=so_sha, expect=build.get("so_sha256"))
+
+    # 2) 加载证明：命令形态照 T0 定稿，判据只有 `dlopen error` 计数
+    load_cmd = ["foamRun", "-libs", f'("{libfile}")', "-help"]
+    if shutil.which(load_cmd[0]) is None:
+        _fail(EX_LOAD, "PATH 上没有 foamRun：先 source $WM_PROJECT_DIR/etc/bashrc",
+              load_cmd=load_cmd, so_sha256_ok=True)
+    rc: int | None = None
+    try:
+        proc = subprocess.run(load_cmd, capture_output=True, text=True, timeout=args.timeout)
+        merged, rc = (proc.stdout or "") + (proc.stderr or ""), proc.returncode
+    except subprocess.TimeoutExpired as exc:
+        merged = _as_text(exc.stdout) + _as_text(exc.stderr)
+        _fail(EX_LOAD, f"foamRun -help 超过 --timeout {args.timeout}s", load_cmd=load_cmd,
+              load_rc=None, dlopen_error=merged.count("dlopen error"))
+
+    dlopen = merged.count("dlopen error")
+    if dlopen:
+        head = "\n".join(merged.splitlines()[:20])
+        _fail(EX_LOAD,
+              f"加载证明失败：输出里 dlopen error 出现 {dlopen} 次"
+              "（`.so` 在 $FOAM_USER_LIBBIN 但不在 LD_LIBRARY_PATH 上，或库本身坏了）",
+              load_cmd=load_cmd, load_rc=rc, dlopen_error=dlopen, load_output=head)
+
+    # 3) R2：系统树没有被我们改动过
+    newer = system_tree_newer(project_dir)
+    if newer:
+        _fail(EX_SYSTEM,
+              f"$WM_PROJECT_DIR 下有 {len(newer)} 个文件比 build-stamp 新：系统树被改过（R2）",
+              system_tree_newer=newer, project_dir=str(project_dir))
+
+    # 4) 可选：case 侧声明了本库（只读断言，不改 case）
+    case_libs_ok: bool | None = None
+    if args.case:
+        problem = case_libs_problem(Path(args.case).resolve() / "system" / "controlDict", libfile)
+        if problem:
+            _fail(EX_LOAD, problem, case_libs_ok=False, load_cmd=load_cmd)
+        case_libs_ok = True
+
+    verify = {
+        "so_sha256_ok": so_ok,
+        "load_cmd": load_cmd,
+        "load_rc": rc,
+        "dlopen_error": dlopen,
+        "system_tree_newer": newer,
+        "case_libs_ok": case_libs_ok,
+    }
+    (dest / VERIFY_NAME).write_text(
+        json.dumps(verify, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    )
+    _emit({"ok": True, "stage": "verify", "dest": str(dest), "lib": lib,
+           "so_path": str(so), **verify}, EX_OK)
 
 
 def main(argv: list[str]) -> int:
