@@ -133,6 +133,7 @@ WL_SRC=(
     "scripts/fix_case.py"
     "scripts/batch.py"
     "scripts/msh2d_to_foam.py"
+    "scripts/dev_lib.py"
 )
 WL_DST=(
     "VERSION"
@@ -148,6 +149,7 @@ WL_DST=(
     "scripts/fix_case.py"
     "scripts/batch.py"
     "scripts/msh2d_to_foam.py"
+    "scripts/dev_lib.py"
 )
 
 if [ -f "$REPO_ROOT/LICENSE" ]; then
