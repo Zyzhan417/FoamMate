@@ -39,6 +39,7 @@
 | 基准实测数据 | `bench/results.csv`（15 列，唯一数据源） | 报告逐行回切 CSV；缺口清单只引结论 | `G-CONTRACT-1`；`G-R12-1` 的状态多样性 |
 | 基准结论与失败归因 | `references/12-bench-report.md` | `STATUS.md` N1 只放头条数与限定 | 无门（靠其 §10 的复现命令） |
 | 缺口与待裁定 | `references/10-gap-register.md`（每条带现状命令 / 判据 / 验收命令） | `STATUS.md` N4 只列条目名 | 无门 |
+| 二次开发流程与判据 | `references/14-library-dev-flow.md` | 其它文档只引用 §号 | 无门 |
 | 测试基线 | `tests/unit/README.md`、`tests/contract/README.md`：判据 `failed=0`，**不记项数** | 其它文档不写「N 项测试」 | 无门（约定） |
 | 版本历史 | `CHANGELOG.md`（规则版本 / 产品版本两条轴，不混算） | 其它文档不写「某版本加了什么」 | 无门 |
 | 参考库登记 | `references/registry.csv` | 第三方引用写成 `references/repos/<repo>/<file>:<line>`，sha 必须对得上 | `G-R9-1` / `G-R10-1`；`G-DOC-1` |
@@ -55,7 +56,7 @@
 
 | 你做了什么 | 必须更新（写值处） | 通常不必更新 | 局部核验 |
 |---|---|---|---|
-| 改 CLI 参数 / 新增用户面脚本 | `release/SKILL.md` §3–§5；新退出码进 `KNOWN_EXIT_CODES`；对应测试；脚本清单 6 处（见 §6 M-1） | README 能力概览（除非能力变了）、`references/00`、`specs/` | `check_release_docs.py` + 该脚本的测试 |
+| 改 CLI 参数 / 新增用户面脚本 | `release/SKILL.md` §3–§5；新退出码进 `KNOWN_EXIT_CODES`；对应测试；脚本清单（见 §6 M-1） | README 能力概览（除非能力变了）、`references/00`、`specs/` | `check_release_docs.py` + 该脚本的测试 |
 | 只改实现、接口不变（bug fix） | 代码 + 回归测试；已发布 → `CHANGELOG.md` 产品版本；若是坑 → `STATUS.md` N7/N9 | 其它文档一律不动 | 相关测试文件 |
 | 新增 / 关闭缺口 | `10-gap-register.md` 该条（保留历史行）；`STATUS.md` N4 一行 | `12-bench-report.md`（历史结论不改写） | 该条自带的「现状命令」 |
 | 一轮实跑 / 新基准数据 | `bench/results.csv`；报告；`STATUS.md` N1 摘要 | `tests/*/README.md`（只判 `failed=0`） | `check_contracts.py` + 重算脚本 |
@@ -141,15 +142,20 @@ PYTHON=<同上解释器> bash scripts/make_export.sh --dest dist/export   # 从 
 
 每条都带可复现的现状命令；能选的给两种处理与代价，不能选的写明「不改」及理由。**不自行裁定**。
 
-### M-1 脚本清单六处平行登记（另有一处漏项）
+### M-1 脚本清单七处平行登记（另有一处漏项）
 
 现状：加/改一个用户面脚本要同步 `scripts/preflight.sh` 的 `USER_SCRIPTS`（8 个，不含自身）、
 `scripts/make_release.sh` 的 `WL_SRC`/`WL_DST`（两数组）、`tests/unit/test_exit_codes.py` 的 `SCRIPTS`、
 `tests/unit/test_portability.py` 的 `USER_FACING`、`tests/contract/test_make_release.py` 的
-`PACKAGE_SCRIPTS`、`scripts/check_release_docs.py` 的 `KNOWN_EXIT_CODES`（退出码，不是脚本名）。
+`PACKAGE_SCRIPTS`、`scripts/check_release_docs.py` 的 `KNOWN_EXIT_CODES`（退出码，不是脚本名）、
+以及 `scripts/preflight.sh` 里那句「8 个用户面脚本」的三处文字副本
+（实测 `grep -n "个用户面脚本" scripts/preflight.sh` → 12 / 74 / 94；同文件 :212 是从数组算的，
+不用改）——**同一份清单的文字副本，加脚本时要一起改，没有任何门盯它**。
+v0.3 的 `scripts/dev_lib.py` 进上述七处。
 
 ```bash
 grep -n "USER_SCRIPTS=\|WL_SRC=\|WL_DST=" scripts/preflight.sh scripts/make_release.sh
+grep -n "个用户面脚本" scripts/preflight.sh
 grep -n "SCRIPTS = \[" tests/unit/test_exit_codes.py
 grep -n "USER_FACING = \[" -A12 tests/unit/test_portability.py
 grep -n "PACKAGE_SCRIPTS = {" -A12 tests/contract/test_make_release.py
@@ -158,11 +164,11 @@ grep -n "PACKAGE_SCRIPTS = {" -A12 tests/contract/test_make_release.py
 已知不一致（本轮复核）：`tests/unit/test_portability.py:40` 的注释写「那 6 个 + P2 才出现的
 `preflight.sh`」，紧随的 `USER_FACING` 有 8 项且**没有 `batch.py`**——即「不得写死
 `/opt/openfoam13`」这条判据当前不覆盖 `batch.py`。`README.md:123` 说 9 个用户面 CLI。
-「6 处」把 `make_release.sh` 的两个平行数组算作一处；README 的那句计数是第 7 处，但它只是文字、
-没有断言（见 M-2）。
+「七处」的算法：`make_release.sh` 的两个平行数组算一处；第 7 处是上面那句 usage 文字，它只是文字、
+没有断言。`README.md:123` 的用户面 CLI 计数是又一处文字、同样无断言（见 M-2）。
 
-- 选项 A：抽一份单一清单（如 `scripts/clis.txt`），六处改为派生 + 断言；代价：一次设计 + 6 处改造 + 4 个测试文件。
-- 选项 B：保持现状，把「6 处」写进本文（已写），并给 `test_portability` 补 `batch.py`；代价：仍要改 6 处，但漏改会被断言抓住。
+- 选项 A：抽一份单一清单（如 `scripts/clis.txt`），七处改为派生 + 断言；代价：一次设计 + 7 处改造 + 4 个测试文件。
+- 选项 B：保持现状，把「7 处」写进本文（已写），并给 `test_portability` 补 `batch.py`；代价：仍要改 7 处，其中两处（usage 文字、README 计数）漏改不会被抓红。
 
 ### M-2 README 的事实没有任何门盯着
 
