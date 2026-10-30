@@ -22,6 +22,7 @@
 | `test_verify_case_pre.py` | 模块 E-lite：G1 结构 + G5 范围；mtime 与 `base/` 两条路径 |
 | `test_batch.py` | 模块 H：`cases.json` 的 base + vary 展开（上限 50）、id 命名、覆盖顺序；零求解 |
 | `test_msh2d_to_foam.py` | 模块 I：面顺序 / 法向 / patch 归属 / 拒收半成品（零 gmsh，判的是格式与自检） |
+| `test_dev_lib.py` | 模块 J：四个 stage 的判据（`prepare` 两处改写 + 4 条拒收 + V1 自检 / `check` 越界 / `build` 的 rc 与 `error:` 计数 / `verify` 的 `dlopen` 计数 + 系统树）——假 `wmake`、假 `foamRun` 桩，**零 OpenFOAM** |
 | `test_check_contracts.py` | 模块 G：`results.csv` 15 列 + `case.meta` 六键；退出码 0/40/64 |
 | `test_check_release_docs.py` | 文档契约检查器的变异自测：四条判据各配一个必红变异（退 41） |
 | `test_export.py` | 导出树 E1–E6：六门在一棵树上全绿 + 每一类失效都有变异用例（退 80） |

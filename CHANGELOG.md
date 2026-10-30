@@ -64,6 +64,13 @@
 
 ## 产品版本（`VERSION`）
 
+### 0.3.0 — 2026-10-31
+
+- 新增 `scripts/dev_lib.py`（二次开发 / 用户库）：四个 stage `prepare` / `check` / `build` /
+  `verify`（退出码 `85`–`89`），流程是「派生系统子库副本 → 判改动范围 → `wmake libso` →
+  `foamRun -libs` 的 `dlopen` 证明」。**只保证编译与加载，不保证物理正确**；改 `.C`/`.H` 那一步
+  仍由人 / 宿主做。规则与判据见 `AGENTS.md` R15、`release/SKILL.md` §11。
+
 ### 0.2.0 — 2026-10-29
 
 - 新增 `scripts/batch.py`（批量运行）：`cases.json` 的 base + vary 矩阵 → 逐例派生/改参数/跑/门禁 →

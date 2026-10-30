@@ -27,7 +27,7 @@ description: Use when 要把一句自然语言 CFD 需求变成一个能在本�
 ## 2 前置检查（第一条命令，永远先跑）
 
 ```bash
-export HARNESS=/path/to/foam-mate-0.2.0            # 本包根目录，里面有 scripts/
+export HARNESS=/path/to/foam-mate-0.3.0            # 本包根目录，里面有 scripts/
 export WORK=$HOME/foam-work                        # 你的工作目录，随便选
 mkdir -p "$WORK"
 bash "$HARNESS/scripts/preflight.sh"                # 无参数 = 跑检查

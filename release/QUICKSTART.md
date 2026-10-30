@@ -19,7 +19,7 @@
 
 ```bash
 source /opt/openfoam13/etc/bashrc          # 必须先 source，否则 $FOAM_* 全空
-export HARNESS=/path/to/foam-mate-0.2.0
+export HARNESS=/path/to/foam-mate-0.3.0
 export WORK=$HOME/foam-work
 mkdir -p "$WORK"
 ```

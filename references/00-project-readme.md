@@ -3,7 +3,9 @@
 **一句话**：agent 把自然语言翻成 OpenFOAM 的字典文本与命令；脚本只负责两件 agent 做不稳的事——
 判定「能不能跑」和批量调度。
 
-- 版本：v0.2（脚本层 9 个用户面 CLI，含批量运行与 2D 网格导入；本文保留为设计记录）
+- 版本：v0.2（脚本层 9 个用户面 CLI，含批量运行与 2D 网格导入；本文保留为设计记录。
+  v0.3 增至 10 个：新增二次开发 `scripts/dev_lib.py`（派生 / 判范围 / 编译 / 加载证明），
+  本节以下仍是 v0.2 当时的记录，不改写）
 - 目标环境：OpenFOAM v13 (Foundation)，`/opt/openfoam13`，`source /opt/openfoam13/etc/bashrc`
 - 本机 build：`13-441953dfbb42`
 - 规则见 `AGENTS.md`（其中 R1 是硬规则：源码检索强制 grep）

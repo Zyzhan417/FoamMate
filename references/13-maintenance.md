@@ -142,16 +142,21 @@ PYTHON=<同上解释器> bash scripts/make_export.sh --dest dist/export   # 从 
 
 每条都带可复现的现状命令；能选的给两种处理与代价，不能选的写明「不改」及理由。**不自行裁定**。
 
-### M-1 脚本清单七处平行登记（另有一处漏项）
+### M-1 脚本清单七处平行登记（文字副本在任何门之外）
 
-现状：加/改一个用户面脚本要同步 `scripts/preflight.sh` 的 `USER_SCRIPTS`（8 个，不含自身）、
-`scripts/make_release.sh` 的 `WL_SRC`/`WL_DST`（两数组）、`tests/unit/test_exit_codes.py` 的 `SCRIPTS`、
-`tests/unit/test_portability.py` 的 `USER_FACING`、`tests/contract/test_make_release.py` 的
-`PACKAGE_SCRIPTS`、`scripts/check_release_docs.py` 的 `KNOWN_EXIT_CODES`（退出码，不是脚本名）、
-以及 `scripts/preflight.sh` 里那句「8 个用户面脚本」的三处文字副本
-（实测 `grep -n "个用户面脚本" scripts/preflight.sh` → 12 / 74 / 94；同文件 :212 是从数组算的，
-不用改）——**同一份清单的文字副本，加脚本时要一起改，没有任何门盯它**。
-v0.3 的 `scripts/dev_lib.py` 进上述七处。
+现状（**七处，已含 v0.3 的 `scripts/dev_lib.py`；2026-10-31 复核**）：加/改一个用户面脚本要同步
+
+1. `scripts/preflight.sh` 的 `USER_SCRIPTS`（v0.3 起 9 个，不含自身，`:75`）；
+2. `scripts/make_release.sh` 的 `WL_SRC`/`WL_DST`（两数组算一处，`:122`/`:138`）；
+3. `tests/unit/test_exit_codes.py` 的 `SCRIPTS`；
+4. `tests/unit/test_portability.py` 的 `USER_FACING`（v0.3 起 10 项——比 1–3 多 `batch.py`，
+   因为它是 2026-10-31 才补的漏项，见下）；
+5. `tests/contract/test_make_release.py` 的 `PACKAGE_SCRIPTS`；
+6. `scripts/check_release_docs.py` 的 `KNOWN_EXIT_CODES`（退出码，不是脚本名；v0.3 加 `85`–`89`）；
+7. `scripts/preflight.sh` 里那句「9 个用户面脚本」的三处**文字**副本
+   （实测 `grep -n "个用户面脚本" scripts/preflight.sh` → `:12` / `:74` / `:95`；
+   同文件 `:213` 是从 `${#USER_SCRIPTS[@]}` 算的，不用改）——加脚本时要一起改，
+   **没有任何门盯它**。
 
 ```bash
 grep -n "USER_SCRIPTS=\|WL_SRC=\|WL_DST=" scripts/preflight.sh scripts/make_release.sh
@@ -161,14 +166,26 @@ grep -n "USER_FACING = \[" -A12 tests/unit/test_portability.py
 grep -n "PACKAGE_SCRIPTS = {" -A12 tests/contract/test_make_release.py
 ```
 
-已知不一致（本轮复核）：`tests/unit/test_portability.py:40` 的注释写「那 6 个 + P2 才出现的
-`preflight.sh`」，紧随的 `USER_FACING` 有 8 项且**没有 `batch.py`**——即「不得写死
-`/opt/openfoam13`」这条判据当前不覆盖 `batch.py`。`README.md:123` 说 9 个用户面 CLI。
+已知不一致（2026-10-31 复核后的现状）：
+
+- ~~`tests/unit/test_portability.py` 的注释写「那 6 个 + P2 才出现的 `preflight.sh`」，
+  `USER_FACING` 里没有 `batch.py`~~ —— **已于 2026-10-31 修**：注释改成「10 个」并写明它
+  与 `USER_SCRIPTS` / `WL_SRC` 是同一份清单的副本；`USER_FACING` 补上 `batch.py` 与
+  `dev_lib.py`（判据实测：`batch.py` 正文 0 处写死前缀，故 `ALLOWED_NON_COMMENT` 不加它）。
+- 同文件判据本身也改了一处口径：`.py` 的三引号 docstring 内的散文不再算「写死前缀」。
+  起因是 `scripts/dev_lib.py:566` 有一句解释 R2 基线的散文提到 `/opt/openfoam13`；
+  若要它绿，只能删掉那句解释或给它记一个假的豁免数——两种都把判据往宽松挪，所以改的是分类
+  （代码行仍 0 容忍）。
+- `tests/unit/test_exit_codes.py` 的 stderr 判据放宽为「`usage` / `用法` / `error:` 三者有其一」：
+  `scripts/dev_lib.py` 走 argparse，只打 `dev_lib.py: error: the following arguments are required:
+  --stage`（无 usage 块），而它点名了缺哪个参数——语义上比 usage 块更直接。
+
+`README.md:123` 的计数已随 v0.3 改成 10 个（仍是文字、仍无断言，见 M-2）。
 「七处」的算法：`make_release.sh` 的两个平行数组算一处；第 7 处是上面那句 usage 文字，它只是文字、
-没有断言。`README.md:123` 的用户面 CLI 计数是又一处文字、同样无断言（见 M-2）。
+没有断言。
 
 - 选项 A：抽一份单一清单（如 `scripts/clis.txt`），七处改为派生 + 断言；代价：一次设计 + 7 处改造 + 4 个测试文件。
-- 选项 B：保持现状，把「7 处」写进本文（已写），并给 `test_portability` 补 `batch.py`；代价：仍要改 7 处，其中两处（usage 文字、README 计数）漏改不会被抓红。
+- 选项 B：保持现状，把「7 处」写进本文（已写），并给 `test_portability` 补 `batch.py`（**已于 2026-10-31 修**）；代价：仍要改 7 处，其中两处（usage 文字、README 计数）漏改不会被抓红。
 
 ### M-2 README 的事实没有任何门盯着
 
