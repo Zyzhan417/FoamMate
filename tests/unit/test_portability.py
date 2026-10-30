@@ -9,8 +9,9 @@
 
 ## 判据（三条，都是可判定的）
 
-1. `test_no_bare_prefix_outside_comments`：7 个用户面脚本逐行扫，含 `/opt/openfoam13`
-   的行要么是注释行，要么是**按 `$WM_PROJECT_DIR` 推导、缺省回退**的那一行。
+1. `test_no_bare_prefix_outside_comments`：10 个用户面脚本逐行扫，含 `/opt/openfoam13`
+   的行要么是注释行（`.py` 里还包括三引号 docstring 内的散文），要么是**按 `$WM_PROJECT_DIR`
+   推导、缺省回退**的那一行。
    「推导」的机械判据是该行同时出现 `WM_PROJECT_DIR`——只写死一个常量、不读环境变量的
    行过不去。`find_template.sh` 允许恰好 1 行，且必须落在 `resolve_bash_rc()` 的回退分支内；
    `fix_case.py` 允许恰好 1 行（`os.environ.get("WM_PROJECT_DIR", ...)` 的缺省值）；
@@ -37,7 +38,11 @@ FIND_TEMPLATE = SCRIPTS / "find_template.sh"
 PREFIX = "/opt/openfoam13"
 BASH = "/usr/bin/bash"
 
-#: 用户面脚本（进发布包的那 6 个 + P2 才出现的 preflight.sh）。不存在者跳过。
+#: 用户面脚本 = 发布白名单里的 `scripts/` 部分（10 个：`preflight.sh` + 8 个功能工具
+#: + `batch.py` + `dev_lib.py`）。这张表与 `scripts/preflight.sh` 的 `USER_SCRIPTS`、
+#: `scripts/make_release.sh` 的 `WL_SRC` 是同一份清单的三处副本（见
+#: `references/13-maintenance.md` §6 M-1）；少一项 = 这门对那个脚本空转。
+#: 不存在者跳过。
 USER_FACING = [
     "parse_requirement.py",
     "find_template.sh",
@@ -47,6 +52,9 @@ USER_FACING = [
     "fix_case.py",
     "preflight.sh",
     "msh2d_to_foam.py",
+    # batch.py 是 M-1 点名的漏项（2026-10-31 补）：它正文 0 处写死前缀，本不该被漏。
+    "batch.py",
+    "dev_lib.py",
 ]
 
 #: 回退分支之外，允许「非注释且含前缀」的行数。
@@ -59,15 +67,42 @@ ALLOWED_NON_COMMENT = {
 }
 
 
+def _docstring_lines(name: str) -> set[int]:
+    """`.py` 文件里落在三引号块内的行号集合（含起止行）。`.sh` 恒为空集。
+
+    为什么要它：判据是「**代码**里不得写死前缀」，而 docstring 是文档——实测
+    `scripts/dev_lib.py:566` 有一句散文提到 `/opt/openfoam13`（解释 R2 的基线从哪来）。
+    只按「行首是不是 `#`」分类会把它算成写死前缀，于是要么删掉那句解释，要么给它开一个
+    假的豁免数——两种都把判据往宽松的方向挪。按三引号块分类则不挪：代码行仍是 0 容忍。
+
+    实现是逐行少数引号奇偶（一行里开+闭算 2，不切换），足以覆盖 `scripts/*.py` 的写法。
+    """
+    if not name.endswith(".py"):
+        return set()
+    inside = False
+    out: set[int] = set()
+    for i, line in enumerate((SCRIPTS / name).read_text(encoding="utf-8").splitlines(), start=1):
+        toggles = line.count('"""') + line.count("'''")
+        if inside:
+            out.add(i)
+            if toggles % 2 == 1:
+                inside = False
+        elif toggles % 2 == 1:
+            inside = True
+            out.add(i)
+    return out
+
+
 def _lines_with_prefix(name: str) -> tuple[list[tuple[int, str]], list[tuple[int, str]]]:
     """返回 (注释行, 非注释行)，元素是 (1-based 行号, 原文)。"""
     path = SCRIPTS / name
+    doc = _docstring_lines(name)
     comments: list[tuple[int, str]] = []
     code: list[tuple[int, str]] = []
     for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         if PREFIX not in line:
             continue
-        if line.lstrip().startswith("#"):
+        if line.lstrip().startswith("#") or i in doc:
             comments.append((i, line))
         else:
             code.append((i, line))

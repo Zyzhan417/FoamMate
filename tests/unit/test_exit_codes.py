@@ -51,6 +51,8 @@ SCRIPTS = [
     "verify_export.py",
     # 网格转换器同理：不给 --msh 就没有默认动作。
     "msh2d_to_foam.py",
+    # 二次开发模块同理：不给 --stage 就没有默认动作。
+    "dev_lib.py",
 ]
 
 EX_USAGE = 64
@@ -76,9 +78,17 @@ def test_usage_error_exits_64(name: str):
     )
 
 
+#: 「用户看得懂错在哪」的两种合法形态（二选一即可）：
+#: ① 打用法块（`usage` / `用法`）；② argparse 的 `prog: error: <缺哪个参数>`。
+#: 实测 `scripts/dev_lib.py` 是②（`dev_lib.py: error: the following arguments are required: --stage`），
+#: 它比用法块更直接——直接点名缺哪个选项。判据的实质是「stderr 里有可执行的下一步」，
+#: 不是「必须打用法块」；把②判红会逼人往脚本里加一行没用的 usage dump。
+USAGE_HINTS = ("usage", "用法", "error:")
+
+
 @pytest.mark.parametrize("name", SCRIPTS)
 def test_usage_error_writes_to_stderr(name: str):
-    """用法错误必须写 stderr，不能污染 stdout。
+    """用法错误必须写 stderr，不能污染 stdout，且要说明「错在哪」。
 
     为什么单独一条：模块间契约里 stdout 有语义（A 回显 JSON、B 输出命中行）。
     用法错误若写 stdout，会被下游当成正常输出解析——例如 B 的空命中判据是
@@ -88,8 +98,8 @@ def test_usage_error_writes_to_stderr(name: str):
     proc = subprocess.run([str(path)], capture_output=True, text=True, timeout=60)
 
     assert proc.stderr.strip(), f"{name} 用法错误时 stderr 为空，用户看不到错在哪"
-    assert "usage" in proc.stderr.lower() or "用法" in proc.stderr, (
-        f"{name} 用法错误的 stderr 里既无 'usage' 也无 '用法'：{proc.stderr.strip()[:200]!r}"
+    assert any(hint in proc.stderr.lower() for hint in USAGE_HINTS), (
+        f"{name} 用法错误的 stderr 里既无 'usage' / '用法' 也无 'error:'：{proc.stderr.strip()[:200]!r}"
     )
 
 

@@ -9,7 +9,7 @@
 #     3 tutorials       $FOAM_TUTORIALS 可读且 system/controlDict 计数 >= 100 (失败码 50)
 #     4 version         $WM_PROJECT_VERSION 字面等于 13                    (失败码 51)
 #     5 python3         python3 >= 3.9                                     (失败码 50)
-#     6 scripts         同目录 8 个用户面脚本存在且可执行                   (失败码 50)
+#     6 scripts         同目录 9 个用户面脚本存在且可执行                   (失败码 50)
 #
 #   顺序不是为了好看：#1 先判「有没有 source」，否则没 source 时 #4 会看到空的
 #   $WM_PROJECT_VERSION，把「环境没加载」误报成「版本不对」(51)，用户会去重装/降级
@@ -71,7 +71,7 @@ readonly BASH_RC="$(resolve_bash_rc)"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 readonly SCRIPT_DIR
 
-# 8 个用户面脚本（= 发布白名单里的 scripts/ 部分，本脚本自己不算）
+# 9 个用户面脚本（= 发布白名单里的 scripts/ 部分，本脚本自己不算）
 readonly USER_SCRIPTS=(
     parse_requirement.py
     find_template.sh
@@ -81,6 +81,7 @@ readonly USER_SCRIPTS=(
     fix_case.py
     batch.py
     msh2d_to_foam.py
+    dev_lib.py
 )
 readonly REQUIRED_CMDS=(foamRun foamDictionary blockMesh checkMesh)
 readonly MIN_CONTROLDICTS=100
@@ -91,7 +92,7 @@ usage() {
       preflight.sh --help
   （无参数即跑检查；--check 是同义别名，写出来只为可读性）
   检查内容：bashrc 已 source / 四个命令在 PATH / tutorials 可用 / 版本是 13
-            / python3 >= 3.9 / 同目录 8 个用户面脚本齐备
+            / python3 >= 3.9 / 同目录 9 个用户面脚本齐备
   --help ：只打印本用法并退 0
 
 输出：每项一行，通过为 stdout `OK <name> <detail>`，失败为 stderr `FAIL <name> <detail>`；

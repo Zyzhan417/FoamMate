@@ -1,6 +1,6 @@
 ---
 name: openfoam-v13-case-harness
-description: Use when 要把一句自然语言 CFD 需求变成一个能在本机 OpenFOAM v13 上跑通的 case 目录（派生 tutorial、改字典、跑求解、过五道门禁）。本 harness 只提供九个确定性命令行工具与一份文档：不含模型、不控流程，模型与循环由调用方提供。仅支持 OpenFOAM v13。
+description: Use when 要把一句自然语言 CFD 需求变成一个能在本机 OpenFOAM v13 上跑通的 case 目录（派生 tutorial、改字典、跑求解、过五道门禁）。本 harness 只提供十个确定性命令行工具与一份文档：不含模型、不控流程，模型与循环由调用方提供。仅支持 OpenFOAM v13。
 ---
 
 # OpenFOAM v13 case harness
@@ -14,8 +14,9 @@ description: Use when 要把一句自然语言 CFD 需求变成一个能在本�
 
 **这是一个 harness，不是 agent。** 它不含任何模型调用、不决定下一步做什么、不自己循环：
 
-- 它提供的东西：**九个确定性的命令行工具** + 这份文档。同样的输入永远给同样的输出。
-  （一个前置检查 `preflight.sh` + 八个功能工具：需求解析 / 检索 / 派生 / 网格转换 / 求解 / 门禁 / 修复 / 批量）
+- 它提供的东西：**十个确定性的命令行工具** + 这份文档。同样的输入永远给同样的输出。
+  （一个前置检查 `preflight.sh` + 八个功能工具：需求解析 / 检索 / 派生 / 网格转换 / 求解 / 门禁 / 修复 / 批量
+  + 一个二次开发工具 `dev_lib.py`：派生用户库 / 判改动范围 / 编译 / 加载证明，见 §11）
 - 谁决定流程：**调用方**——人，或者读这份文档的另一个 agent。调度权、裁决权、什么时候停下问人，
   都在调用方那边。
 - 因此"跑通了"这句话的**证据是退出码**，不是任何一方的自述。harness 只回答"能不能跑"，
@@ -331,6 +332,7 @@ python3 "$HARNESS/scripts/fix_case.py" --case "$WORK/cavity-01" \
 | `33` | 写前校验或回读不符（字典没变） | 数一下 entry 在文件里是否恰好出现 1 次；0 次或多次都会被拒 |
 | `50` | 前置检查：环境不全 | 执行它给的那条 `source <前缀>/etc/bashrc` |
 | `51` | 前置检查：版本不是 v13 | 换环境或停在这里，本包不给别的版本兜底 |
+| `85` / `86` / `87` / `88` / `89` | **二次开发（用户库）**：`prepare` 规格 / `check` 越界 / `build` 构建 / `verify` 加载与系统树各一个码 | 那不是「建 case」的失败，是「用户库」的失败；逐码含义与命令见 **§11** |
 | `64` | 用法错误或前置不满足（参数非法、`--case` 不存在） | 改你的调用；`64` 不是业务结果，别和 `1`–`5` 混 |
 | `40` / `41` / `60` | 维护侧（打包与文档契约检查），**不在交付包里**，使用者遇不到 | 与你无关；维护者见 §9 |
 
@@ -386,7 +388,8 @@ python3 "$HARNESS/scripts/fix_case.py" --case "$WORK/cavity-01" \
 - **不保证多版本。** 只对 OpenFOAM v13 负责；v11/v12、v2012、esi 系、OpenFOAM.com 都不测。
 - **不替你决定批量参数值。** 批量入口有（§10），但它只按 `cases.json` 里给的值改参数；
   "改成什么值"、"这个 Re 配这个网格合不合适"，都是你的判断。
-- **不支持二次开发**（改 OpenFOAM 源码、编译用户库）。那需要用户目录里的独立编译流程，不在本包内。
+- **不写 C++，也不保证物理正确**：二次开发的四步（派生 / 判范围 / 编译 / 加载证明）在包里（§11），
+  但那四步只回答「这个 `.so` 能被 v13 加载」；改 `.C`/`.H` 那一步永远由你或宿主做，脚本只在事后判范围。
 - **不做前处理自动化**：不出网格、不处理 STL、不优化网格质量。
 - **不造检索层、不做 GUI/Web**：知识只有 `find_template.sh` 一个 grep 入口。
 
@@ -493,3 +496,68 @@ python3 "$HARNESS/scripts/batch.py" --cases cases.json \
 
 最后一条是唯一会中止整批的情形：`22` = PATH 里没有 `foamRun`，是整批性的环境问题，
 继续跑只会得到 N 行相同的 22。所以 `batch.py` 在开跑前就主动探测一次。
+
+## 11 二次开发（用户库）
+
+**什么时候用它**：要改的是**模型 / 边界条件 / 函数对象 / 子库的行为**，而 v13 现成的 type 里
+没有能用的（先按 §3 步骤 2 找一圈：`find_template.sh` 搜关键字、`ls -d $FOAM_SRC/*/…/derived`
+看还有哪些 type——能找到现成的就别做二次开发）。**永远不改 `/opt/openfoam13`**（§6 第 3 条）：
+唯一路径是「派生系统子库的副本 → 最小差异 → 编成用户库 → 证明能加载」。规则原文是项目根的
+`AGENTS.md` **R15**（`AGENTS.md` 不在交付包里，对外只需知道本节这四条命令与四道判据）。
+
+`--dest` 必须在 `$WM_PROJECT_USER_DIR` 之下，且**事先不存在**：脚本不覆盖、不删除你的东西。
+
+### 11.1 四条命令（可直接复制）
+
+```bash
+# 1 prepare：cp -a 系统子库 → 用户副本；改写 Make/files 的 LIB 行，
+#   与 Make/options 里指向副本之外的**相对** -I（改成绝对路径——不改的话 wmake 第一步就失败）
+python3 "$HARNESS/scripts/dev_lib.py" --stage prepare \
+  --source "$FOAM_SRC/fvAgglomerationMethods/pairPatchAgglomeration" \
+  --dest "$WM_PROJECT_USER_DIR/src/myAgglom" \
+  --lib myAgglomMod \
+  --allowed '*.C' --allowed '*.H'
+
+# 2 这一步是**你**做的：改 .C / .H。脚本不改 C++，也不生成 C++。
+
+# 3 check：当前树与 dev.meta 的逐文件 sha256 清单比对，越界就红
+python3 "$HARNESS/scripts/dev_lib.py" --stage check --dest "$WM_PROJECT_USER_DIR/src/myAgglom"
+
+# 4 build：wmake -j N libso，日志写 <dest>/log.wmake，产物要落在 $FOAM_USER_LIBBIN
+python3 "$HARNESS/scripts/dev_lib.py" --stage build --dest "$WM_PROJECT_USER_DIR/src/myAgglom" --jobs 2
+
+# 5 verify：`foamRun -libs` 的 dlopen 证明 + 系统树未被改
+#   （可选 --case <算例目录>：顺手核对它的 system/controlDict 有没有 libs 本库）
+python3 "$HARNESS/scripts/dev_lib.py" --stage verify --dest "$WM_PROJECT_USER_DIR/src/myAgglom"
+```
+
+`--stage` 只有四个值：`prepare` / `check` / `build` / `verify`（上面第 2 步不在脚本里）。
+`--allowed` 是后面唯一允许你改动的文件范围（glob，可重复或逗号分隔）——**动手前**就声明它。
+
+### 11.2 退出码
+
+五个业务码一次说清：**规格不成立**退 `85`、**改动越界**退 `86`、**构建失败**退 `87`、
+**加载失败**退 `88`、**系统树被改**退 `89`。用法错误仍是 `64`（与 §4 全部脚本同号）。
+
+| 退出码 | 含义 | 下一步 |
+|---|---|---|
+| `0` | 该 stage 通过 | 进下一个 stage |
+| `85` | 规格不成立：派生源不可编译（没有 `Make/files`，或 `Make/files` 里没有 `^LIB` 行）/ `--dest` 已存在或不在 `$WM_PROJECT_USER_DIR` 下 / 相对 `-I` 解析到副本之外而目标又不存在 / 派生完整性（逐文件 sha256）不符 | 换派生源或换 `--dest`。`prepare` 失败会**删掉 dest**，不留半成品 |
+| `86` | 越界：改了 `--allowed` 之外的文件（增 / 删 / 改都算），或 `dev.meta` 自身被改过 | 撤销那处改动；或重新 `prepare` 并把 `--allowed` 写对 |
+| `87` | 构建失败：`wmake` 退出码非 0 / `log.wmake` 里 `error:` 计数非 0 / `.so` 不在 `$FOAM_USER_LIBBIN` | 读 `log.wmake` 的第一条 `error:`——别只看退出码（这两个信号各自都不完备） |
+| `88` | 加载失败：`foamRun -libs` 输出里 `dlopen error` 计数非 0 | `.so` 是否在 `LD_LIBRARY_PATH` 上（`$FOAM_USER_LIBBIN` 本来就在；把 `.so` 挪走就会红） |
+| `89` | 系统树被改：`$WM_PROJECT_DIR` 下有比 `build-stamp` 更新的文件 | 这是红线（§6 第 3 条）：撤销，并把改动搬进副本 |
+| `64` | 用法错误 | 改调用 |
+
+### 11.3 用你自己的库
+
+算例的 `system/controlDict` 里给 `libs` 加上你那份（`libs ("libmyAgglomMod.so");`——引号在括号内），
+再把对应字典里的 `type` 改成你新注册的类型名，然后回到 §3 步骤 5–6 跑既有的五道门。
+**「库编得过、加载得进」与「算例真的用了你的类」是两件事**：后者只由既有门禁和你的断言回答。
+
+### 11.4 这一节保证什么
+
+**只保证编译与加载，不保证物理正确**（同 §8）：`.so` 落在 `$FOAM_USER_LIBBIN`、
+`foamRun -libs` 的 `dlopen error` 计数为 0、系统树比 `build-stamp` 更新的文件数为 0——
+这三条是「这个库能用」的必要条件，没有一条涉及「你改的那行 C++ 语义对不对」。
+模型改错（系数漏量纲、增长率符号反了）会一路绿到底。
