@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# 假 wmake（L1 用）。绝不调真编译器；只记录被怎么调用，并按环境变量决定成败。
+printf '%s\n' "$*" >> "${FAKE_WMAKE_LOG:-/dev/null}"
+if [ "${FAKE_WMAKE_RC:-0}" -ne 0 ]; then
+    printf '%s:12:5: error: expected initializer before %s\n' "${FAKE_ERR_FILE:-demo.C}" "'}'" >&2
+    exit "${FAKE_WMAKE_RC}"
+fi
+: > "${FAKE_SO_OUT:?需要 FAKE_SO_OUT}"
+printf 'making dependency list for source file demo.C\n'
+exit 0

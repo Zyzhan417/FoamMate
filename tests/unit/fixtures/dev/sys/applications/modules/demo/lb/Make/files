@@ -1,0 +1,3 @@
+demoModel/demoModel.C
+
+LIB = $(FOAM_LIBBIN)/libdemo

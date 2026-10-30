@@ -1,0 +1,7 @@
+EXE_INC = \
+    -I../phaseSystem/lnInclude \
+    -Isub/lnInclude \
+    -I$(LIB_SRC)/finiteVolume/lnInclude
+
+LIB_LIBS = \
+    -lphaseSystem

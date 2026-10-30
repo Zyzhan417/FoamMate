@@ -20,8 +20,11 @@ skip 掉等于这些分支没人测，`V3`/`V4` 就退化成「跑过了就算�
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -63,3 +66,152 @@ def test_help_exits_0_and_lists_stages():
     assert p.returncode == 0
     for s in ("prepare", "check", "build", "verify"):
         assert s in p.stdout
+
+
+# ---------------------------------------------------------------------------
+# 夹具：伪系统树 + 伪用户目录
+# ---------------------------------------------------------------------------
+
+
+def _pseudo_tree(tmp_path: Path) -> dict[str, str]:
+    """把 `fixtures/dev/sys` 复制成 `tmp_path/sys`，并返回**全程只指 tmp_path** 的 env。
+
+    为什么要复制而不是直接用仓库里的夹具：`prepare` 会读源树、甚至（改写后）比较 sha256，
+    让它读仓库里的活文件等于把「仓库内容」当被测输入的一部分；复制一份到 tmp_path 后，
+    仓库夹具只作为模板，被测的永远是 tmp 里的那份。
+    """
+    sysdir = tmp_path / "sys"
+    shutil.copytree(FIXTURES / "sys", sysdir)
+    user = tmp_path / "user"
+    (user / "platforms/x/lib").mkdir(parents=True)
+    env = dict(os.environ)
+    env.update({
+        "WM_PROJECT_DIR": str(sysdir),
+        "FOAM_APP": str(sysdir / "applications"),
+        "FOAM_SRC": str(sysdir / "src"),
+        "FOAM_LIBBIN": str(tmp_path / "syslib"),        # 冲突判据用；默认不存在
+        "WM_PROJECT_USER_DIR": str(user),
+        "FOAM_USER_LIBBIN": str(user / "platforms/x/lib"),
+    })
+    return env
+
+
+def _prepare_args(env: dict[str, str], lib: str = "demoMod", extra: list[str] | None = None) -> list[str]:
+    src = Path(env["FOAM_APP"]) / "modules/demo/lb"
+    dest = Path(env["WM_PROJECT_USER_DIR"]) / "src/lb_mod"
+    args = ["--stage", "prepare", "--source", str(src), "--dest", str(dest), "--lib", lib]
+    args += extra or []
+    return args
+
+
+# ---------------------------------------------------------------------------
+# T3 · prepare
+# ---------------------------------------------------------------------------
+
+
+def test_prepare_rewrites_lib_and_external_include(tmp_path):
+    """准备阶段的四条硬事实：LIB 换用户库、外部相对 -I 变绝对、副本内相对原样、make 变量原样。"""
+    env = _pseudo_tree(tmp_path)
+    src = Path(env["FOAM_APP"]) / "modules/demo/lb"
+    dest = Path(env["WM_PROJECT_USER_DIR"]) / "src/lb_mod"
+
+    p = run(_prepare_args(env, extra=["--allowed", "demoModel/demoModel.C"]), env=env)
+    assert p.returncode == 0, p.stdout + p.stderr
+
+    files = (dest / "Make/files").read_text()
+    assert "LIB = $(FOAM_USER_LIBBIN)/libdemoMod" in files
+    assert "$(FOAM_LIBBIN)/libdemo" not in files, "原 LIB 行必须被整行替换，不是追加"
+
+    opts = (dest / "Make/options").read_text()
+    # 外部相对 → 绝对（用 resolve 后的写法比较：/tmp 在部分平台上是符号链接）
+    assert f"-I{(src.parent / 'phaseSystem/lnInclude').resolve()}" in opts
+    assert "-Isub/lnInclude" in opts                             # 副本内相对 → 原样
+    assert "-I$(LIB_SRC)/finiteVolume/lnInclude" in opts         # make 变量 → 原样
+    assert "-I../phaseSystem/lnInclude" not in opts, "旧相对路径必须消失"
+    assert opts.count("\\\n") == 4, "行尾续行符数量必须不变（EXE_INC 靠它连成一条）"
+
+    meta = json.loads((dest / "dev.meta").read_text())
+    assert set(meta) == {"system_source", "lib_name", "system_lib",
+                         "created_at", "allowed_files", "manifest", "symlinks"}
+    assert meta["system_lib"] == "$(FOAM_LIBBIN)/libdemo"
+    assert meta["system_source"] == "applications/modules/demo/lb"
+    assert meta["lib_name"] == "demoMod"
+    assert meta["allowed_files"] == ["demoModel/demoModel.C"]
+    assert re.search(r"[+-]\d{2}:\d{2}$", meta["created_at"]), meta["created_at"]
+    # manifest 是**改写后**的真值，且不含 dev.meta 自己
+    assert meta["manifest"]["Make/files"] == hashlib.sha256((dest / "Make/files").read_bytes()).hexdigest()
+    assert meta["manifest"]["demoModel/demoModel.C"] == hashlib.sha256(b"// demo\n").hexdigest()
+    assert "dev.meta" not in meta["manifest"]
+
+    out = json.loads(p.stdout)
+    assert out["ok"] is True and out["stage"] == "prepare"
+    assert out["dest"] == str(dest) and out["lib"] == "demoMod"
+    assert out["files"] == len(meta["manifest"])
+
+
+def test_prepare_rejects_dest_outside_user_dir(tmp_path):
+    env = _pseudo_tree(tmp_path)
+    src = Path(env["FOAM_APP"]) / "modules/demo/lb"
+    outside = tmp_path / "elsewhere/lb_mod"
+    p = run(["--stage", "prepare", "--source", str(src), "--dest", str(outside), "--lib", "demoMod"], env=env)
+    assert p.returncode == 85, p.stdout + p.stderr
+    payload = json.loads(p.stdout)
+    assert payload["ok"] is False
+    assert "WM_PROJECT_USER_DIR" in payload["reason"], payload["reason"]
+    assert not outside.exists(), "拒收时不得在 $WM_PROJECT_USER_DIR 之外建目录"
+
+
+def test_prepare_rejects_source_outside_project_dir(tmp_path):
+    env = _pseudo_tree(tmp_path)
+    stray = tmp_path / "stray/lb"
+    shutil.copytree(Path(env["FOAM_APP"]) / "modules/demo/lb", stray)
+    dest = Path(env["WM_PROJECT_USER_DIR"]) / "src/lb_mod"
+    p = run(["--stage", "prepare", "--source", str(stray), "--dest", str(dest), "--lib", "demoMod"], env=env)
+    assert p.returncode == 85, p.stdout + p.stderr
+    assert "WM_PROJECT_DIR" in json.loads(p.stdout)["reason"]
+    assert not dest.exists()
+
+
+def test_prepare_rejects_lib_name_colliding_with_system_lib(tmp_path):
+    env = _pseudo_tree(tmp_path)
+    libbin = Path(env["FOAM_LIBBIN"])
+    libbin.mkdir(parents=True)
+    (libbin / "libdemoMod.so").touch()
+    p = run(_prepare_args(env), env=env)
+    assert p.returncode == 85, p.stdout + p.stderr
+    assert "已存在" in json.loads(p.stdout)["reason"]
+    assert not (Path(env["WM_PROJECT_USER_DIR"]) / "src/lb_mod").exists()
+
+
+def test_prepare_rejects_existing_dest(tmp_path):
+    env = _pseudo_tree(tmp_path)
+    dest = Path(env["WM_PROJECT_USER_DIR"]) / "src/lb_mod"
+    dest.mkdir(parents=True)
+    (dest / "keep.txt").write_text("用户的东西\n")
+    p = run(_prepare_args(env), env=env)
+    assert p.returncode == 85, p.stdout + p.stderr
+    assert "已存在" in json.loads(p.stdout)["reason"]
+    assert (dest / "keep.txt").read_text() == "用户的东西\n", "已存在的 dest 不许被覆盖或删除"
+
+
+def test_prepare_rejects_unresolved_include_and_leaves_no_partial_dest(tmp_path):
+    """`-I` 解析不到 → 85，而且 dest 不许留半成品（否则下一次 prepare 会因 dest 已存在而永远 85）。"""
+    env = _pseudo_tree(tmp_path)
+    opts = Path(env["FOAM_APP"]) / "modules/demo/lb/Make/options"
+    opts.write_text(opts.read_text().replace("LIB_LIBS", "    -I../nope/lnInclude \\\n\nLIB_LIBS"))
+
+    p = run(_prepare_args(env), env=env)
+    assert p.returncode == 85, p.stdout + p.stderr
+    payload = json.loads(p.stdout)
+    assert payload["unresolved"] == ["../nope/lnInclude"]
+    assert not (Path(env["WM_PROJECT_USER_DIR"]) / "src/lb_mod").exists()
+
+
+def test_prepare_requires_env(tmp_path):
+    """环境为空 → 85 且 reason 让人知道该 source bashrc（不猜安装路径）。"""
+    env = dict(os.environ)
+    for k in ("WM_PROJECT_DIR", "FOAM_LIBBIN", "WM_PROJECT_USER_DIR", "FOAM_USER_LIBBIN"):
+        env.pop(k, None)
+    p = run(["--stage", "prepare", "--source", "x", "--dest", "y", "--lib", "z"], env=env)
+    assert p.returncode == 85, p.stdout + p.stderr
+    assert "bashrc" in json.loads(p.stdout)["reason"]
