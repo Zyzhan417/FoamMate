@@ -586,7 +586,9 @@ class Runner:
             )
 
         # ⑤ 求解
-        started = time.time()
+        # 墙钟必须用 monotonic：time.time() 会被步进校正回退，实测写出过 wall_time_s=-1.7
+        # （CLOCK_REALTIME 在 WSL2 上会倒退）。P-01，2026-10-31 修。
+        started = time.monotonic()
         run_cmd = [
             str(self.scripts / "run_case.sh"),
             "--case", str(run_dir / "case"),
@@ -595,7 +597,7 @@ class Runner:
             "--timeout", str(self.timeout),
         ]
         run_rc = run(run_cmd, log, timeout=self.timeout + 60)
-        wall = wall_seconds(time.time() - started)
+        wall = wall_seconds(time.monotonic() - started)
         metrics["stage_rc"]["run"] = run_rc
 
         if run_rc == 22:

@@ -370,6 +370,29 @@ def test_wall_seconds_keeps_two_decimals():
     assert batch.wall_seconds(0.004) == 0.0
 
 
+def test_wall_clock_is_monotonic_source():
+    """P-01 的回归守卫：`batch.py` 不得再用 `time.time()` 测时长。
+
+    为什么必须有这条：`time.time()` 读 CLOCK_REALTIME，会被步进校正**回退**（WSL2 实测），
+    于是 `wall_seconds(负数)` 写出 `wall_time_s=-1.7`。这条缺陷在 2026-10-29 与 2026-10-31
+    各出现过一次，第二次的形态是让 `test_export_tree_passes_all_six_gates`（发布边界验收）
+    偶发假红——看起来像导出树坏了。
+
+    判据是「代码里不出现」，不是「测得准不准」：后者无法在单元层确定性复现
+    （要制造时钟回退）。所以按类扫源码，和 `test_batch_does_not_import_bench` 同一种写法。
+    """
+    code = [
+        line for line in SCRIPT.read_text(encoding="utf-8").splitlines()
+        if not line.lstrip().startswith("#")
+    ]
+    hits = [line.strip() for line in code if "time.time()" in line]
+    assert not hits, (
+        "batch.py 用 time.time() 测时长会写出负值（P-01），必须用 time.monotonic()：\n"
+        + "\n".join(hits)
+    )
+    assert "time.monotonic()" in "\n".join(code), "batch.py 里找不到 time.monotonic()，墙钟来源可疑"
+
+
 def test_wall_time_written_as_is(tmp_path: Path):
     """`write_results` 不得改写 `wall_time_s`（测量值与落盘值必须是同一个数）。"""
     outcomes = [
