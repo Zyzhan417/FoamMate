@@ -253,6 +253,43 @@ else
   report G-R13-1 0 1
 fi
 
+# ---------------------------------------------------------------- R13 归档
+head1 "G-R13-2 STATUS.md 的归档指针与 .hermes/archive/status-rounds.md 双向一一对应"
+# 判据（R13）：STATUS 里每个 `A<n>` 指针必须在归档里有一节 `## A<n>`；
+# 归档里每一节也必须被 STATUS 引用（否则是孤儿节，下一个人找不到入口）。
+# 双向都要：单向只能抓「指针断链」或「孤儿」之一，合起来才等价于「两边同步」。
+# 0 样本不算违规（新克隆 / 导出树没有 .hermes/，那时 STATUS 里也不会有指针）——
+# 但要显式打印，否则「0 个对象」会被当成合规证据。
+ARCHIVE=.hermes/archive/status-rounds.md
+ptr=""
+if [ -f STATUS.md ]; then
+  ptr=$(grep -oE '`A[0-9]+`' STATUS.md | tr -d '`' | sort -u)
+fi
+sec=""
+if [ -f "$ARCHIVE" ]; then
+  sec=$(grep -oE '^## A[0-9]+ ' "$ARCHIVE" | sed 's/^## //; s/ *$//' | sort -u)
+fi
+n_ptr=$(printf '%s' "$ptr" | grep -c . || true)
+n_sec=$(printf '%s' "$sec" | grep -c . || true)
+v13=0
+for a in $ptr; do
+  if ! printf '%s\n' "$sec" | grep -qx "$a"; then
+    echo "BROKEN-POINTER $a：STATUS.md 指了它，但 $ARCHIVE 里没有 '## $a' 节"
+    v13=$((v13+1))
+  fi
+done
+for a in $sec; do
+  if ! printf '%s\n' "$ptr" | grep -qx "$a"; then
+    echo "ORPHAN-SECTION $a：$ARCHIVE 有这一节，但 STATUS.md 没有任何指针指向它"
+    v13=$((v13+1))
+  fi
+done
+if [ "$n_ptr" -eq 0 ] && [ "$n_sec" -eq 0 ]; then
+  echo "note: STATUS 无归档指针、归档文件不存在或无节 —— 本门 0 样本，不构成证据"
+fi
+echo "  指针 $n_ptr 个 / 归档节 $n_sec 个"
+report G-R13-2 "$((n_ptr + n_sec))" "$v13"
+
 # ---------------------------------------------------------------- 文档引用
 head1 "G-DOC-1 references/repos 的 path:line 引用必须真实存在且行号不越界"
 tmp=$(mktemp)

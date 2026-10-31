@@ -34,7 +34,7 @@
 | 产品范围与限制 | `release/SCOPE.md` | README「已知限制」给四条摘要 + 链接 | `check_release_docs.py` |
 | 需求约定（v0.1） | `specs/001-release-a-harness/spec.md` | 其它文档引用 `spec §` | 无门；历史件。v0.2 无 spec，见 M-7 |
 | 实施计划（v0.1） | `specs/001-release-a-harness/plan.md`、`tasks.md` | `STATUS.md` 只指路 | 无门；2026-10-29 起冻结为历史 |
-| **当前任务状态** | `STATUS.md`：`N1`（现在哪一步）/ `N4`（下一步）/ `N11`（轮次记录） | 其它文档不写「现在到哪一步」 | `G-R13-1`（机器段）+ 人工 |
+| **当前任务状态** | `STATUS.md`：`N1`（现在哪一步）/ `N4`（下一步）/ 轮次记录段（最近 3 轮详细；更早的压成索引 + 指向 `.hermes/archive/status-rounds.md`） | 其它文档不写「现在到哪一步」 | `G-R13-1`（机器段）+ `G-R13-2`（归档双向）+ 人工 |
 | 冻结方法学与任务集 | `bench/preregistration.md` + `bench/tasks/T*.yaml` | `AGENTS.md` R12 只指章节号 | `G-R12-2` / `G-R12-3` |
 | 基准实测数据 | `bench/results.csv`（15 列，唯一数据源） | 报告逐行回切 CSV；缺口清单只引结论 | `G-CONTRACT-1`；`G-R12-1` 的状态多样性 |
 | 基准结论与失败归因 | `references/12-bench-report.md` | `STATUS.md` N1 只放头条数与限定 | 无门（靠其 §10 的复现命令） |
@@ -73,7 +73,8 @@
 
 ## 4 状态记录：六字段
 
-每条状态记录都要有这六项，缺任一不算记录（`STATUS.md` N11 是实例）。
+每条状态记录都要有这六项，缺任一不算记录。**强制范围是最近 3 轮**（R13）；更早的轮次在 STATUS 里只留
+一行索引，六字段原文逐字保存在 `.hermes/archive/status-rounds.md`（原型实例是归档的 `A2`／原 N11）。
 
 | 字段 | 写法 | 反例 |
 |---|---|---|
@@ -84,8 +85,8 @@
 | 未验证项 | 明确写「未验证」，并点名范围（未提交的树 / 未跑的分支 / 未审的正文） | 省略不写 |
 | 下一步 | 指向 `STATUS.md` N4 的条目号或 §6 的登记号 | 重抄一遍下一步的内容 |
 
-放在哪：**跨轮仍有效的**（阶段、决策、下一步）进 `STATUS.md` N1/N4；**一次性轮次记录**进 N11，
-旧的不删。同一件事不要同时写在 N1 和 N11——两处必然漂移。
+放在哪：**跨轮仍有效的**（阶段、决策、下一步）进 `STATUS.md` N1/N4；**一次性轮次记录**进轮次段（只留最近 3 轮，更早的转 `A<n>` 归档），
+旧的不删（转归档，不删除）。同一件事不要同时写在 N1 与轮次段——两处必然漂移。
 
 模板（复制后填）：
 
@@ -194,7 +195,7 @@ grep -n "PACKAGE_SCRIPTS = {" -A12 tests/contract/test_make_release.py
 2026-10-29 已修掉当时查出的三处（`references` 编号范围、`bench/runs` 为空、测试项数），根因未解决。
 
 - 选项 A：把 README 纳入 `check_release_docs.py`（需要为「陈述」设计可判定判据，不能只判引用）。
-- 选项 B：接受无门，改 README 时必须跑 `grep` 自查 + 在 N11 记一条。代价：靠人。
+- 选项 B：接受无门，改 README 时必须跑 `grep` 自查 + 在轮次段记一条。代价：靠人。
 
 ### M-3 P-01：`scripts/batch.py` 用非单调墙钟
 
@@ -218,8 +219,8 @@ grep -n "PACKAGE_SCRIPTS = {" -A12 tests/contract/test_make_release.py
 根 README 的测试项数已在本轮改成定性（§7）；`references/10-gap-register.md` §0 仍写「`98` 项测试」
 （本轮实测收集 338：`pytest --collect-only -q` 分别 256 + 82）。`10-gap-register` 是分析文档，
 不是状态文档，故未改。判据：出现「N 项测试」的句子都要能被 `--collect-only` 重算，否则降为定性。
-同类残留：`STATUS.md` N10 写「`references/00` 有约 50 处下游 `:NNN` 引用」，本轮实测 **97** 处
-（命令见 M-6）；N10 是上一轮的记录，按「历史记录保持过去时」不改写，只在此登记。
+同类残留：`STATUS.md` 已归档的 N10（→ `A1`）写「`references/00` 有约 50 处下游 `:NNN` 引用」，本轮实测 **97** 处
+（命令见 M-6）；N10 是历史轮次记录，按「历史记录保持过去时」不改写（现在已归档到 `A1`），只在此登记。
 
 ### M-6 `references/00` §7.1 的文档索引停在 03–11
 
@@ -257,7 +258,7 @@ grep -n "## 10 批量运行" release/SKILL.md    # → v0.2 能力的实际契�
 | `README.md` | 结构行的 `references` 范围 00–12 → 00–13；规则条数改为「14 条（9 硬 + 5 约定）」；两处测试项数改为定性 | 本轮新增 13；`grep -c '^## R' AGENTS.md` |
 | `specs/001-release-a-harness/tasks.md` | 头注释：原文「单一事实来源」保留为删除线 + 冻结说明 | 与 R13 冲突，见下 |
 | `references/11-delivery-form.md` §10 | 同一处「`tasks.md` 是唯一事实来源」改为指向 `STATUS.md`（状态列标明是当时快照） | 同一冲突的第二处副本（N8 第 6 条：修一条事实错误先 grep 全部副本） |
-| `STATUS.md` | N1 里「唯一事实来源是 tasks.md 的勾选框」改为「v0.1 执行记录」；N1.1 索引补 13；新增 N11 | R13 分工 |
+| `STATUS.md` | N1 里「唯一事实来源是 tasks.md 的勾选框」改为「v0.1 执行记录」；N1.1 索引补 13；新增 N11（现已归档为 `A2`） | R13 分工 |
 | `CHANGELOG.md` | 规则版本 1.6（新增 R14，判据未变）；产品版本不动 | 版本轴分离 |
 
 **冲突登记（按要求只记录、不改变语义）**：`specs/001/tasks.md` 原第 3 行自称「单一事实来源」，
@@ -282,7 +283,7 @@ grep -n "## 10 批量运行" release/SKILL.md    # → v0.2 能力的实际契�
 |---|---|---|
 | 触发 | 发现陈述与事实不符 | `ls references/*.md \| wc -l` → 15 |
 | 写值处 | 只改 `README.md` 两行（:128 结构行、:135 段落） | 同行替换，不动行数（根 README 的入站 `:NNN` 引用实测 1 处；`references/00` 才有 97 处） |
-| 记录 | `STATUS.md` N11 记一条六字段 | 见 §4 模板 |
+| 记录 | `STATUS.md` 轮次段记一条六字段（最近 3 轮） | 见 §4 模板 |
 | 规则文档 | 本文 §7 记一笔（谁改了什么、依据） | — |
 | **不更新** | `CHANGELOG.md`（非版本变化）、`tests/*`（无测试变化）、`bench/*`（冻结件）、`specs/*`（历史）、`release/*`（接口未变） | 按 §3 判据：这些文档描述的事实没变 |
 | 核验 | 引用副本只有一处 | `grep -rn "00–12" --include=*.md .`（应只剩历史文件里的过去时记录） |
@@ -290,7 +291,7 @@ grep -n "## 10 批量运行" release/SKILL.md    # → v0.2 能力的实际契�
 **一句话**：这类小任务只需要动 **3 处**（值 1 处 + 状态记录 1 处 + 本文 1 处），不是 8 类文档全改。
 
 对照（**未执行**，只给判据）：修 P-01 会动 `scripts/batch.py` + `tests/contract/test_batch_e2e.py`
-（或新增单测）+ `STATUS.md` N4/N11 + 发布后的 `CHANGELOG` 产品版本；**不动** `release/SKILL.md`
+（或新增单测）+ `STATUS.md` N4 + 轮次段 + 发布后的 `CHANGELOG` 产品版本；**不动** `release/SKILL.md`
 （接口与退出码未变）、`bench/*`（数据未变）、`references/12-bench-report.md`（历史结论不改写）。
 
 ---
