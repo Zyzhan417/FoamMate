@@ -252,3 +252,100 @@ def test_install_reports_unreachable_remote_as_93(tmp_path: Path) -> None:
     assert proc.returncode == deploy.EX_REMOTE
     assert payload["ok"] is False
     assert "clone" in payload["reason"]
+
+
+# ---------------------------------------------------------------------------
+# update：fetch → classify → 只做快进
+# ---------------------------------------------------------------------------
+
+
+def _advance_upstream(seed: Path, version: str) -> str:
+    (seed / "VERSION").write_text(version + "\n", encoding="utf-8")
+    _git(seed, "commit", "-qam", "upstream bump")
+    _git(seed, "push", "-q", "origin", "main")
+    return _git(seed, "rev-parse", "HEAD").stdout.strip()
+
+
+def test_update_when_current_does_nothing(tmp_path: Path) -> None:
+    origin, _seed = _make_origin(tmp_path)
+    target = _install(tmp_path, origin)
+    before = _git(target, "rev-parse", "HEAD").stdout.strip()
+
+    proc, payload = _run("--action", "update", "--target", str(target))
+
+    assert proc.returncode == 0, proc.stderr
+    assert payload["state"] == deploy.CURRENT
+    assert payload["changed"] == []
+    assert _git(target, "rev-parse", "HEAD").stdout.strip() == before
+
+
+def test_update_fast_forwards(tmp_path: Path) -> None:
+    origin, seed = _make_origin(tmp_path)
+    target = _install(tmp_path, origin)
+    upstream = _advance_upstream(seed, "0.4.0")
+
+    proc, payload = _run("--action", "update", "--target", str(target), "--no-preflight")
+
+    assert proc.returncode == 0, proc.stderr
+    assert payload["state"] == deploy.FAST_FORWARD
+    assert payload["commit"] == upstream
+    assert payload["version"] == "0.4.0"
+    assert payload["changed"] == ["VERSION"]
+    assert (target / "VERSION").read_text(encoding="utf-8").strip() == "0.4.0"
+
+
+def test_update_refuses_dirty_tracked_file(tmp_path: Path) -> None:
+    origin, seed = _make_origin(tmp_path)
+    target = _install(tmp_path, origin)
+    _advance_upstream(seed, "0.4.0")
+    (target / "VERSION").write_text("0.3.0-local-edit\n", encoding="utf-8")
+    before = _git(target, "rev-parse", "HEAD").stdout.strip()
+
+    proc, payload = _run("--action", "update", "--target", str(target))
+
+    assert proc.returncode == deploy.EX_DIRTY
+    # git porcelain 的 XY 两列：未暂存的工作树改动形如 " M <path>"（首列是索引、次列是工作树）
+    assert payload["dirty_tracked"] == [" M VERSION"]
+    assert _git(target, "rev-parse", "HEAD").stdout.strip() == before   # 没动手
+
+
+def test_update_refuses_ahead_only(tmp_path: Path) -> None:
+    origin, _seed = _make_origin(tmp_path)
+    target = _install(tmp_path, origin)
+    (target / "LOCAL.md").write_text("note\n", encoding="utf-8")
+    _git(target, "add", "-A")
+    _git(target, "commit", "-q", "-m", "local commit")
+    before = _git(target, "rev-parse", "HEAD").stdout.strip()
+
+    proc, payload = _run("--action", "update", "--target", str(target))
+
+    assert proc.returncode == 0
+    assert payload["state"] == deploy.AHEAD
+    assert _git(target, "rev-parse", "HEAD").stdout.strip() == before
+
+
+def test_update_refuses_diverged_history(tmp_path: Path) -> None:
+    origin, seed = _make_origin(tmp_path)
+    target = _install(tmp_path, origin)
+    (target / "LOCAL.md").write_text("note\n", encoding="utf-8")
+    _git(target, "add", "-A")
+    _git(target, "commit", "-q", "-m", "local commit")
+    _advance_upstream(seed, "0.4.0")
+    before = _git(target, "rev-parse", "HEAD").stdout.strip()
+
+    proc, payload = _run("--action", "update", "--target", str(target))
+
+    assert proc.returncode == deploy.EX_DIVERGED
+    assert "force-push" in payload["reason"]
+    assert _git(target, "rev-parse", "HEAD").stdout.strip() == before
+
+
+def test_update_reports_unreachable_remote(tmp_path: Path) -> None:
+    origin, _seed = _make_origin(tmp_path)
+    target = _install(tmp_path, origin)
+    _git(target, "remote", "set-url", "origin", str(tmp_path / "gone.git"))
+
+    proc, payload = _run("--action", "update", "--target", str(target))
+
+    assert proc.returncode == deploy.EX_REMOTE
+    assert payload["ok"] is False

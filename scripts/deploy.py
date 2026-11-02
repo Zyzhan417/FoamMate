@@ -313,7 +313,56 @@ def action_install(args: argparse.Namespace) -> int:
 
 
 def action_update(args: argparse.Namespace) -> int:
-    _fail(EX_USAGE, "update 尚未实现")
+    _require_git()
+    target = _target_path(args.target)
+    if not _is_deployment(target):
+        _fail(EX_TARGET, "没有部署（或 --target 指错了）：先 --action install", target=str(target))
+
+    info = _describe(target)
+    branch = info["branch"]
+    if not branch:
+        _fail(EX_TARGET, "部署目录处于 detached HEAD；先 git -C <target> checkout main", **info)
+    local = info["commit"]
+
+    proc = _git_net(target, "fetch", "--quiet", "origin", branch, timeout=args.timeout)
+    if proc.returncode != 0:
+        _fail(EX_REMOTE, f"git fetch 失败（退出码 {proc.returncode}）：{proc.stderr.strip()[:400]}",
+              **dict(info, branch=branch))
+    upstream = _git_out(target, "rev-parse", "FETCH_HEAD")
+    if not upstream:
+        _fail(EX_REMOTE, "fetch 成功但读不到 FETCH_HEAD（远端分支可能已删除）", **info)
+
+    relation = classify(local, upstream, info["dirty_tracked"],
+                        _ancestor(target, local, upstream),
+                        _ancestor(target, upstream, local))
+
+    if relation == DIRTY:
+        _fail(EX_DIRTY, "部署目录里有未提交的已跟踪改动，拒绝更新（能快进也不做）",
+              hint="把改动移出部署目录，或 git -C <target> checkout -- <file>",
+              upstream=upstream, **dict(info, dirty_tracked=info["dirty_tracked"][:20]))
+
+    if relation == DIVERGED:
+        _fail(EX_DIVERGED,
+              "远端不是本地 HEAD 的后代（历史被重写或已分叉）。"
+              "按项目规则 force-push / reset 须由用户明确同意，本脚本不动手",
+              upstream=upstream, **info)
+
+    if relation in (CURRENT, AHEAD):
+        print(f"{relation.upper()} {target} commit={local} upstream={upstream}", file=sys.stderr)
+        _emit({"ok": True, "action": "update", "state": relation, "upstream": upstream,
+               "changed": [], "preflight": None, **info}, EX_OK)
+
+    merge = _git(target, "merge", "--ff-only", "--quiet", "FETCH_HEAD", timeout=args.timeout)
+    if merge.returncode != 0:
+        _fail(EX_DIVERGED, f"git merge --ff-only 失败（退出码 {merge.returncode}）："
+                           f"{merge.stderr.strip()[:400]}", upstream=upstream, **info)
+
+    after = _describe(target)
+    changed = (_git_out(target, "diff", "--name-only", f"{local}..{after['commit']}") or "").splitlines()
+    pre, code = _preflight_payload(target, args)
+    _emit({"ok": code == EX_OK, "action": "update", "state": FAST_FORWARD,
+           "old_commit": local, "old_version": info["version"],
+           "upstream": upstream, "changed": changed, "preflight": pre, **after}, code)
 
 
 def action_status(args: argparse.Namespace) -> int:
