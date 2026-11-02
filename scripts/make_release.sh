@@ -177,7 +177,10 @@ FORBIDDEN_EXACT=("AGENTS.md" "STATUS.md" "README.md" "CHANGELOG.md"
                  # 所以不进 12 文件包；登记在这里是为了让「scripts/ 下有白名单未收录的文件」
                  # 这条源树检查认得它们（新增维护脚本必须同时登记，否则组装器退 60——
                  # 实测形态：加完 make_export.sh 后 tests/unit/test_batch.py 立刻红）。
-                 "scripts/make_export.sh" "scripts/verify_export.py")
+                 "scripts/make_export.sh" "scripts/verify_export.py"
+                 # 部署/更新器：依赖 .git，发布包（无 .git）里必然不可用，故不进包。
+                 # 登记在这里是为了让「scripts/ 下有白名单未收录的文件」这条源树检查认得它。
+                 "scripts/deploy.py")
 
 is_forbidden() {
     local rel="$1"
