@@ -111,6 +111,133 @@ def build_parser() -> argparse.ArgumentParser:
 # 纯函数与 git 助手（任务 2 起在这里追加）
 # ---------------------------------------------------------------------------
 
+CURRENT = "current"
+AHEAD = "ahead"
+DIRTY = "dirty"
+FAST_FORWARD = "fast_forward"
+DIVERGED = "diverged"
+
+
+def classify(local: str, upstream: str, dirty: list[str],
+             local_is_ancestor: bool, upstream_is_ancestor: bool) -> str:
+    """把四个可观测量归约成一个动作；**除这里没有第二处做这个判断**。
+
+    顺序即优先级，每一步对应一种不同的处置：
+
+    1. 两个 SHA 相等    → current：没有更新；工作树脏不脏都不改变这个事实
+    2. 远端是本地祖先    → ahead：部署目录里有未推送的提交（有人在这里 commit 过）
+    3. 已跟踪文件有改动  → dirty：能快进也不做，否则用户改动会与合并结果纠缠
+    4. 本地是远端祖先    → fast_forward：唯一会自动动手的分支
+    5. 其余             → diverged：历史被重写或分叉；按项目规则不自动 reset
+    """
+    if local == upstream:
+        return CURRENT
+    if upstream_is_ancestor:
+        return AHEAD
+    if dirty:
+        return DIRTY
+    if local_is_ancestor:
+        return FAST_FORWARD
+    return DIVERGED
+
+
+def _repo_root() -> Path:
+    """本脚本所在仓库的根（deploy.py 在 scripts/ 下）；不写死任何绝对路径。"""
+    return Path(__file__).resolve().parents[1]
+
+
+def _target_path(raw: str | None) -> Path:
+    if raw:
+        return Path(raw).expanduser().resolve()
+    env = os.environ.get("FOAM_MATE_HOME", "").strip()
+    if env:
+        return Path(env).expanduser().resolve()
+    return (Path.home() / DEFAULT_TARGET_NAME).resolve()
+
+
+def _git(cwd: Path, *args: str, timeout: int = 600) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(["git", *args], cwd=str(cwd), capture_output=True,
+                          text=True, timeout=timeout)
+
+
+def _git_net(cwd: Path, *args: str, timeout: int = 600) -> subprocess.CompletedProcess[str]:
+    """网络侧 git：超时也要变成可解释的 93，不能甩一段 traceback。"""
+    try:
+        return _git(cwd, *args, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        _fail(EX_REMOTE, f"git {' '.join(args)} 超过 {timeout}s 未返回（网络不可达或卡在凭据提示）",
+              cmd=["git", *args])
+
+
+def _git_out(cwd: Path, *args: str) -> str | None:
+    proc = _git(cwd, *args)
+    return proc.stdout.strip() if proc.returncode == 0 else None
+
+
+def _require_git() -> None:
+    if not shutil.which("git"):
+        _fail(EX_TARGET, "PATH 上没有 git：本模块用 git 记录「装的是哪个提交」并判断远端更新")
+
+
+def _origin_url(root: Path, override: str | None) -> str:
+    if override:
+        return override
+    url = _git_out(root, "remote", "get-url", "origin")
+    if not url:
+        _fail(EX_TARGET,
+              "无法确定仓库地址：当前仓库没有 origin。"
+              "下载的 zip 没有提交坐标，不能部署；请 git clone 后用 --repo-url 指定地址",
+              repo_root=str(root))
+    return url
+
+
+def _is_deployment(target: Path) -> bool:
+    """target 本身（不是它的外层仓库）是一个 git 工作树 → 当作部署目录。
+
+    `--show-toplevel` 会向上找到外层仓库，所以必须比对解析后的路径；
+    否则 `~/foam-mate/sub` 这种子目录也会被当成部署。
+    """
+    if not target.is_dir():
+        return False
+    top = _git_out(target, "rev-parse", "--show-toplevel")
+    return top is not None and Path(top).resolve() == target.resolve()
+
+
+def _version(target: Path) -> str | None:
+    f = target / "VERSION"
+    return f.read_text(encoding="utf-8").strip() if f.is_file() else None
+
+
+def _head(target: Path) -> str | None:
+    return _git_out(target, "rev-parse", "HEAD")
+
+
+def _branch(target: Path) -> str | None:
+    return _git_out(target, "symbolic-ref", "--short", "HEAD")
+
+
+def _dirty_tracked(target: Path) -> list[str]:
+    """**已跟踪**文件的改动。untracked 不算：算例/笔记放部署目录里是允许的，
+    真会撞车时 `git merge` 自己会拒绝（`--ff-only` 也一样）。"""
+    proc = _git(target, "status", "--porcelain", "--untracked-files=no")
+    if proc.returncode != 0:
+        return []
+    return [line for line in proc.stdout.splitlines() if line.strip()]
+
+
+def _ancestor(target: Path, a: str, b: str) -> bool:
+    return _git(target, "merge-base", "--is-ancestor", a, b).returncode == 0
+
+
+def _describe(target: Path) -> dict:
+    return {
+        "target": str(target),
+        "commit": _head(target),
+        "version": _version(target),
+        "branch": _branch(target),
+        "dirty_tracked": _dirty_tracked(target),
+    }
+
 
 # ---------------------------------------------------------------------------
 # 动作
@@ -126,7 +253,29 @@ def action_update(args: argparse.Namespace) -> int:
 
 
 def action_status(args: argparse.Namespace) -> int:
-    _fail(EX_USAGE, "status 尚未实现")
+    _require_git()
+    target = _target_path(args.target)
+    if not _is_deployment(target):
+        _fail(EX_TARGET, "没有部署（或 --target 指错了）：先 --action install", target=str(target))
+
+    info = _describe(target)
+    upstream: str | None = None
+    relation: str | None = None
+    if args.fetch:
+        branch = info["branch"]
+        if not branch:
+            _fail(EX_TARGET, "部署目录处于 detached HEAD；先 git -C <target> checkout main", **info)
+        proc = _git_net(target, "fetch", "--quiet", "origin", branch, timeout=args.timeout)
+        if proc.returncode != 0:
+            relation = "unreachable"
+        else:
+            upstream = _git_out(target, "rev-parse", "FETCH_HEAD")
+            relation = (classify(info["commit"], upstream, info["dirty_tracked"],
+                                 _ancestor(target, info["commit"], upstream),
+                                 _ancestor(target, upstream, info["commit"]))
+                        if upstream else "unreachable")
+    _emit({"ok": True, "action": "status", "upstream": upstream, "relation": relation, **info},
+          EX_OK)
 
 
 # ---------------------------------------------------------------------------

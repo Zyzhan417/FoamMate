@@ -83,3 +83,94 @@ def test_help_exits_zero(tmp_path: Path) -> None:
     assert proc.returncode == 0, proc.stderr[:300]
     for word in ("install", "update", "status", "90", "94"):
         assert word in proc.stdout, f"--help 里缺少 {word}"
+
+def _git(cwd: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+    env = {
+        **os.environ,
+        "GIT_AUTHOR_NAME": "probe", "GIT_AUTHOR_EMAIL": "probe@example.invalid",
+        "GIT_COMMITTER_NAME": "probe", "GIT_COMMITTER_EMAIL": "probe@example.invalid",
+        "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull,
+    }
+    proc = subprocess.run([GIT, *args], cwd=str(cwd), capture_output=True, text=True,
+                          timeout=120, env=env)
+    if check and proc.returncode != 0:
+        raise AssertionError(f"git {' '.join(args)} 失败({proc.returncode}): {proc.stderr}")
+    return proc
+
+
+def _make_origin(tmp_path: Path, version: str = "0.3.0") -> tuple[Path, Path]:
+    """造一个 bare 远端 + 它的 seed 工作副本（seed 用来造新提交）。"""
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "init", "--bare", "--initial-branch=main", str(origin))
+    seed = tmp_path / "seed"
+    _git(tmp_path, "clone", "--quiet", str(origin), str(seed))
+    (seed / "VERSION").write_text(version + "\n", encoding="utf-8")
+    (seed / "scripts").mkdir()
+    preflight = seed / "scripts" / "preflight.sh"
+    preflight.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+    preflight.chmod(0o755)
+    _git(seed, "add", "-A")
+    _git(seed, "commit", "-q", "-m", "c1")
+    _git(seed, "push", "-q", "origin", "main")
+    return origin, seed
+
+
+def _install(tmp_path: Path, origin: Path, name: str = "harness") -> Path:
+    target = tmp_path / name
+    proc, payload = _run("--action", "install", "--repo-url", str(origin),
+                         "--target", str(target), "--no-preflight")
+    assert proc.returncode == 0, proc.stderr
+    assert payload["state"] == "installed"
+    return target
+
+
+# ---------------------------------------------------------------------------
+# classify：自动更新的唯一判据
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("local", "upstream", "dirty", "local_is_ancestor", "upstream_is_ancestor", "expected"),
+    [
+        # 两个 SHA 相等：没有更新，工作树脏不脏都不改变这个事实
+        ("a", "a", [], False, True, deploy.CURRENT),
+        # 本地领先（部署目录里有人 commit 过）：不拒绝、也不动手
+        ("a", "b", [], False, True, deploy.AHEAD),
+        # 落后但本地有已跟踪改动：能快进也不做
+        ("a", "b", ["M scripts/preflight.sh"], True, False, deploy.DIRTY),
+        # 落后且干净、可快进：唯一会自动动手的分支
+        ("a", "b", [], True, False, deploy.FAST_FORWARD),
+        # 历史被重写 / 分叉：两个方向都不是祖先
+        ("a", "b", [], False, False, deploy.DIVERGED),
+    ],
+)
+def test_classify_table(local, upstream, dirty, local_is_ancestor, upstream_is_ancestor, expected):
+    assert deploy.classify(local, upstream, dirty,
+                           local_is_ancestor, upstream_is_ancestor) == expected
+
+
+# ---------------------------------------------------------------------------
+# status：只读
+# ---------------------------------------------------------------------------
+
+
+def test_status_reports_installed_commit_and_version(tmp_path: Path) -> None:
+    origin, _seed = _make_origin(tmp_path, version="0.3.0")
+    target = _install(tmp_path, origin)
+
+    proc, payload = _run("--action", "status", "--target", str(target))
+
+    assert proc.returncode == 0, proc.stderr
+    assert payload["commit"] == _git(target, "rev-parse", "HEAD").stdout.strip()
+    assert payload["version"] == "0.3.0"
+    assert payload["branch"] == "main"
+    assert payload["dirty_tracked"] == []
+    assert payload["relation"] is None            # 没给 --fetch：一个字节都不访问网络
+
+
+def test_status_without_deployment_is_90(tmp_path: Path) -> None:
+    proc, payload = _run("--action", "status", "--target", str(tmp_path / "nope"))
+
+    assert proc.returncode == deploy.EX_TARGET
+    assert payload["ok"] is False
+    assert "install" in payload["reason"]
