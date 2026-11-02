@@ -84,11 +84,19 @@ def test_help_exits_zero(tmp_path: Path) -> None:
     for word in ("install", "update", "status", "90", "94"):
         assert word in proc.stdout, f"--help 里缺少 {word}"
 
+
+#: 临时仓库的提交身份。**不写成邮箱字面量**：`scripts/verify_export.py` 的 E3 会扫导出树里
+#: 每个文本文件（含 `tests/`），任何邮箱形状都会让 `make_export.sh` 退 80、连带 `test_export.py`
+#: 的 module 级夹具报 17 个 error。这里按该文件自己写明的约定（`:114`–`:119`「拼接而非开豁免」）
+#: 拼出运行期值——豁免清单会漂移，而拼接之后源码里不存在可匹配的字面量。
+_TEST_EMAIL = "probe" + "@" + "example.invalid"
+
+
 def _git(cwd: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
     env = {
         **os.environ,
-        "GIT_AUTHOR_NAME": "probe", "GIT_AUTHOR_EMAIL": "probe@example.invalid",
-        "GIT_COMMITTER_NAME": "probe", "GIT_COMMITTER_EMAIL": "probe@example.invalid",
+        "GIT_AUTHOR_NAME": "probe", "GIT_AUTHOR_EMAIL": _TEST_EMAIL,
+        "GIT_COMMITTER_NAME": "probe", "GIT_COMMITTER_EMAIL": _TEST_EMAIL,
         "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull,
     }
     proc = subprocess.run([GIT, *args], cwd=str(cwd), capture_output=True, text=True,
