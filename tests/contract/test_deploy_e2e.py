@@ -5,6 +5,17 @@
   ② 造一个上游新提交 → update 之后，同一个副本仍是 6/6，且 HEAD 指到那个提交。
 
 远端全部是本机临时 bare 仓库（`git clone --bare` 本仓库），**不访问网络**。
+
+## 为什么还要处理「REPO 不是 git 仓库」
+
+`make_export.sh` 用 `git archive HEAD` 组出**导出树**，那棵树里**没有 `.git`**；而在导出树里跑
+`pytest tests/contract` 是本项目一直有的验收动作（STATUS N18 就记过「导出树内 L2 89 passed」）。
+2026-11-02 实测：不加处理时 `git clone --bare <导出树>` 退 **128**（`fatal: repository … does not
+exist`），L2 在导出树里必然红 —— 那不是被测对象坏了，是测试自己假设了「REPO 一定是个仓库」。
+
+处置：**REPO 是 git 工作树** → 照旧 `clone --bare`（最快，且远端就是真实历史）；
+**REPO 不是** → 把树复制成临时仓库再提交，用它当远端。两条路都真跑 install/update，
+**不 skip** —— skip 会把「导出树里跑不了」这件事藏起来，而它正是要暴露的。
 """
 
 from __future__ import annotations
@@ -27,6 +38,30 @@ def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
                           timeout=300)
 
 
+def _deploy_remote(tmp_path: Path) -> Path:
+    """造一个可克隆的远端，内容 = REPO 这棵树。
+
+    分支一（工作树）：`clone --bare` —— 远端直接是真实仓库历史。
+    分支二（导出树，无 `.git`）：把树复制进临时目录、`git init` + 提交，再把这个**普通仓库**当远端
+    （git 允许从非 bare 仓库 clone）。复制时排除 `__pycache__`，它们不该进远端。
+    """
+    if _git(REPO, "rev-parse", "--git-dir").returncode == 0:
+        remote = tmp_path / "remote.git"
+        assert _git(tmp_path, "clone", "--quiet", "--bare", str(REPO),
+                    str(remote)).returncode == 0, "从本仓库 clone --bare 失败"
+        return remote
+
+    work = tmp_path / "remote-work"
+    shutil.copytree(REPO, work,
+                    ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"))
+    ident = ["-c", "user.name=probe",
+             "-c", "user.email=" + "probe" + "@" + "example.invalid"]
+    assert _git(work, *ident, "init", "-q", "--initial-branch=main").returncode == 0
+    assert _git(work, *ident, "add", "-A").returncode == 0
+    assert _git(work, *ident, "commit", "-q", "-m", "export tree as remote").returncode == 0
+    return work
+
+
 def _deploy(env: dict[str, str], *args: str) -> tuple[subprocess.CompletedProcess[str], dict]:
     proc = subprocess.run([sys.executable, str(SCRIPT), *args], capture_output=True,
                           text=True, timeout=900, env=env)
@@ -35,8 +70,7 @@ def _deploy(env: dict[str, str], *args: str) -> tuple[subprocess.CompletedProces
 
 @pytest.mark.skipif(GIT is None, reason="需要 git")
 def test_install_and_update_keep_preflight_green(tmp_path: Path, foam_env: dict[str, str]):
-    remote = tmp_path / "remote.git"
-    assert _git(tmp_path, "clone", "--quiet", "--bare", str(REPO), str(remote)).returncode == 0
+    remote = _deploy_remote(tmp_path)
     seed = tmp_path / "seed"
     assert _git(tmp_path, "clone", "--quiet", str(remote), str(seed)).returncode == 0
 
