@@ -244,8 +244,72 @@ def _describe(target: Path) -> dict:
 # ---------------------------------------------------------------------------
 
 
+def _run_preflight(target: Path, timeout: int) -> dict:
+    """跑目标副本自己的 preflight.sh——不重写一套检查，避免与它漂移。"""
+    script = target / PREFLIGHT_REL
+    if not script.is_file():
+        return {"ran": False, "rc": None, "ok": False,
+                "reason": f"目标里缺少 {PREFLIGHT_REL}（不是一个完整的 FoamMate 部署）"}
+    proc = subprocess.run(["bash", str(script)], cwd=str(target),
+                          capture_output=True, text=True, timeout=timeout)
+    return {"ran": True, "rc": proc.returncode, "ok": proc.returncode == 0,
+            "stdout_tail": proc.stdout.strip().splitlines()[-8:],
+            "stderr_tail": proc.stderr.strip().splitlines()[-8:]}
+
+
+def _preflight_payload(target: Path, args: argparse.Namespace) -> tuple[dict, int]:
+    if args.no_preflight:
+        print("WARN preflight 被 --no-preflight 跳过：本次结果**不构成**「环境就绪」的证据",
+              file=sys.stderr)
+        return {"ran": False, "skipped": True, "rc": None, "ok": None}, EX_OK
+    pre = _run_preflight(target, args.timeout)
+    for line in (pre.get("stdout_tail") or [])[-1:]:
+        print(line, file=sys.stderr)
+    for line in (pre.get("stderr_tail") or [])[-1:]:
+        print(line, file=sys.stderr)
+    return pre, (EX_OK if pre["ok"] else EX_VERIFY)
+
+
 def action_install(args: argparse.Namespace) -> int:
-    _fail(EX_USAGE, "install 尚未实现")
+    _require_git()
+    root = _repo_root()
+    repo_url = _origin_url(root, args.repo_url)
+    target = _target_path(args.target)
+
+    if target == root or root in target.parents:
+        _fail(EX_TARGET, "--target 不能是当前仓库或它的子目录（部署会混进源码树）",
+              target=str(target), repo_root=str(root))
+
+    if _is_deployment(target):
+        origin = _git_out(target, "remote", "get-url", "origin") or ""
+        if origin and origin != repo_url:
+            _fail(EX_TARGET,
+                  "目标已是一个部署，但 origin 与 --repo-url 不同：换 --target，或先手工处理旧目录",
+                  target=str(target), origin=origin, repo_url=repo_url)
+        info = _describe(target)
+        print(f"ALREADY DEPLOYED {target} commit={info['commit']}", file=sys.stderr)
+        _next_steps(target)
+        _emit({"ok": True, "action": "install", "state": "already_deployed",
+               "repo_url": repo_url, **info}, EX_OK)
+
+    if target.exists() and not target.is_dir():
+        _fail(EX_TARGET, "--target 已存在且是一个文件", target=str(target))
+    if target.exists() and any(target.iterdir()):
+        _fail(EX_TARGET, "--target 已存在且非空、又不是本项目的部署：不覆盖",
+              target=str(target), entries=sorted(p.name for p in target.iterdir())[:8])
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    proc = _git_net(root, "clone", "--quiet", repo_url, str(target), timeout=args.timeout)
+    if proc.returncode != 0:
+        _fail(EX_REMOTE, f"git clone 失败（退出码 {proc.returncode}）：{proc.stderr.strip()[:400]}",
+              repo_url=repo_url, target=str(target))
+
+    info = _describe(target)
+    pre, code = _preflight_payload(target, args)
+    if code == EX_OK:
+        _next_steps(target)
+    _emit({"ok": code == EX_OK, "action": "install", "state": "installed",
+           "repo_url": repo_url, "preflight": pre, **info}, code)
 
 
 def action_update(args: argparse.Namespace) -> int:

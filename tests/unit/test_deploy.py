@@ -174,3 +174,73 @@ def test_status_without_deployment_is_90(tmp_path: Path) -> None:
     assert proc.returncode == deploy.EX_TARGET
     assert payload["ok"] is False
     assert "install" in payload["reason"]
+
+
+# ---------------------------------------------------------------------------
+# install：克隆式部署 + 幂等 + 拒绝破坏
+# ---------------------------------------------------------------------------
+
+
+def test_install_creates_deployment_at_head(tmp_path: Path) -> None:
+    origin, seed = _make_origin(tmp_path)
+    target = tmp_path / "harness"
+
+    proc, payload = _run("--action", "install", "--repo-url", str(origin),
+                         "--target", str(target), "--no-preflight")
+
+    assert proc.returncode == 0, proc.stderr
+    assert payload["state"] == "installed"
+    assert payload["commit"] == _git(seed, "rev-parse", "HEAD").stdout.strip()
+    assert payload["version"] == "0.3.0"
+    assert (target / "scripts" / "preflight.sh").is_file()
+    # 部署树里的 origin 必须是 --repo-url，否则 update 会去找一个不存在的远端
+    assert _git(target, "remote", "get-url", "origin").stdout.strip() == str(origin)
+    # --no-preflight 必须在 payload 里留痕：跳过 ≠ 通过
+    assert payload["preflight"] == {"ok": None, "ran": False, "skipped": True,
+                                    "rc": None}
+
+
+def test_install_twice_is_idempotent(tmp_path: Path) -> None:
+    origin, _seed = _make_origin(tmp_path)
+    target = _install(tmp_path, origin)
+
+    proc, payload = _run("--action", "install", "--repo-url", str(origin),
+                         "--target", str(target), "--no-preflight")
+
+    assert proc.returncode == 0
+    assert payload["state"] == "already_deployed"
+    assert payload["commit"] == _git(target, "rev-parse", "HEAD").stdout.strip()
+
+
+def test_install_refuses_non_empty_non_deployment(tmp_path: Path) -> None:
+    origin, _seed = _make_origin(tmp_path)
+    target = tmp_path / "busy"
+    target.mkdir()
+    (target / "user-data.txt").write_text("mine\n", encoding="utf-8")
+
+    proc, payload = _run("--action", "install", "--repo-url", str(origin),
+                         "--target", str(target), "--no-preflight")
+
+    assert proc.returncode == deploy.EX_TARGET
+    assert payload["entries"] == ["user-data.txt"]
+    assert (target / "user-data.txt").read_text(encoding="utf-8") == "mine\n"  # 一个字节没动
+
+
+def test_install_refuses_target_inside_source_repo(tmp_path: Path) -> None:
+    origin, _seed = _make_origin(tmp_path)
+
+    proc, _payload = _run("--action", "install", "--repo-url", str(origin),
+                          "--target", str(REPO / "deploy-probe"), "--no-preflight")
+
+    assert proc.returncode == deploy.EX_TARGET
+    assert not (REPO / "deploy-probe").exists()
+
+
+def test_install_reports_unreachable_remote_as_93(tmp_path: Path) -> None:
+    proc, payload = _run("--action", "install",
+                         "--repo-url", str(tmp_path / "no-such-repo.git"),
+                         "--target", str(tmp_path / "harness"), "--no-preflight")
+
+    assert proc.returncode == deploy.EX_REMOTE
+    assert payload["ok"] is False
+    assert "clone" in payload["reason"]
