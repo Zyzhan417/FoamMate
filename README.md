@@ -43,7 +43,7 @@
 
 ## 快速开始
 
-要求：OpenFOAM v13（Foundation 版）、bash、python3 ≥ 3.9。**运行脚本无第三方 Python 依赖**（全标准库）；
+要求：OpenFOAM v13（Foundation 版）、bash、python3 ≥ 3.9；`scripts/deploy.py` 部署时另需 git。**运行脚本无第三方 Python 依赖**（全标准库）；
 跑测试另需 `pytest`，见 [`requirements-dev.txt`](requirements-dev.txt)。
 
 ```bash
@@ -60,7 +60,7 @@ bash scripts/preflight.sh             # 6 项环境检查：0 全过 / 50 环境
 
 前置检查通过后，读 [`release/SKILL.md`](release/SKILL.md)（六步链 + 退出码总表 + 四类停点），
 照着 [`release/QUICKSTART.md`](release/QUICKSTART.md) 跑一遍完整例子——那份文档里**每一个输出都是真跑出来的**，
-包括一次真实的失败与修法。
+包括一次真实的失败与修法。要把它装到稳定路径、并在远端更新时一键升级，见下文「部署与更新（给 agent 的入口）」。
 
 ### 直接调用脚本
 
@@ -122,7 +122,7 @@ python3 scripts/fix_case.py --case ./my-case --error-log ./my-case/log.shortRun 
 
 ```
 scripts/        10 个用户面 CLI（需求解析 / 检索 / 派生 / 网格转换 / 求解 / 门禁 / 修复 / 前置检查 / 批量 / 二次开发）
-                另含 7 个维护侧脚本（打包、导出树、文档契约、项目门禁、状态快照…）
+                另含 8 个维护侧脚本（打包、导出树、部署更新、文档契约、项目门禁、状态快照…）
 release/        对外交付内容源：SKILL.md（入口）+ QUICKSTART.md + SCOPE.md
 tests/          两级测试：unit（零 OpenFOAM）+ contract（需真求解），判据 failed=0
 bench/          跨任务基准框架：预注册方法学 + 12 个任务定义 + 七态判定器 + 断言库
@@ -163,6 +163,44 @@ HumanLayer《12-Factor Agents》）。它们只作为**方法论证据**引用�
 `ours_scripted`（不调模型）。**仍是单臂，所以本仓库不含任何跨臂比较结论**——详见 `references/12-bench-report.md`。
 
 ---
+
+## 部署与更新（给 agent 的入口）
+
+`scripts/deploy.py` 把这份仓库装到一个**稳定路径**，并在远端有新提交时一键更新。
+部署物就是一份 git 克隆：它回答得了「装的是哪个提交」「远端有没有更新」——发布包回答不了，
+所以这里不用发布包（代价：目标目录里带着 `tests/ bench/ references/`，约 2 MB）。
+
+```bash
+# 1. 首次部署：装到 ~/foam-mate，并跑该副本自己的 preflight 自检
+python3 scripts/deploy.py --action install          # 0 成功；94 = 装好了但环境自检没过
+export HARNESS=$HOME/foam-mate
+
+# 2. 之后每次：检测 + 更新一步完成（已是最新也退 0）
+python3 "$HARNESS/scripts/deploy.py" --action update
+
+# 3. 只查不改（只有 --fetch 才访问远端）
+python3 "$HARNESS/scripts/deploy.py" --action status --fetch
+```
+
+- `--target` 缺省 `$FOAM_MATE_HOME`，再缺省 `~/foam-mate`；`--repo-url` 缺省 = 本仓库的 origin。
+- **装的是提交，不是工作树**：未提交的改动不会进部署（同 `scripts/make_export.sh`）。
+- 更新只做**快进**。本地有未提交改动退 `91`、远端历史被重写退 `92`、远端不可达退 `93`，
+  三种都不动手；按项目规则 force-push 须由用户明确同意。
+- 部署目录不是数据目录：算例放 `$WORK`，别放进去（untracked 不阻止更新，但混在一起会让
+  「装的是哪个提交」这件事变难读）。
+
+| 退出码 | 含义 | 下一步 |
+|---|---|---|
+| `0` | 成功（含 `already_deployed` / `current` / `ahead` 三个幂等态） | 继续 |
+| `90` | 目标状态或前置不合法（非空目录、无 origin、detached HEAD、没有部署） | 按 stderr 的 hint 改 `--target`，或先 `install` |
+| `91` | 本地已跟踪文件有改动，拒绝更新 | 移走改动，或 `git -C <target> checkout -- <file>` |
+| `92` | 远端不是快进（历史被重写 / 分叉） | **停下问人**：`git -C <target> log --oneline HEAD..FETCH_HEAD` 看清再决定 |
+| `93` | 远端不可达（clone/fetch 失败或超时） | 查网络与 `--repo-url` |
+| `94` | 部署后 `scripts/preflight.sh` 未通过 | 按 preflight 最后一行给的 `source` 命令处理后，重跑 `--action status` |
+| `64` | 用法错误 | 改调用，或 `--help` |
+
+`90`–`94` 是自留区间（全仓已用到 `89`）。`deploy.py` **不进发布包**——发布包没有 git 元数据，
+更新无从谈起；它只服务「从仓库部署」这条路。
 
 ## 设计原则（三条）
 
