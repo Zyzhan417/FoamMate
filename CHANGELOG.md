@@ -64,6 +64,17 @@
 
 ## 产品版本（`VERSION`）
 
+### 0.4.0 — 2026-11-02
+
+- 新增 `scripts/deploy.py`（仓库侧，**不进发布包**）：`--action install` 把仓库克隆到稳定路径
+  （缺省 `~/foam-mate`）并跑该副本的 `preflight.sh` 自检；`--action update` 检测远端新提交，
+  只在可快进时合并并重新自检；`--action status` 只读报告。退出码 `90`–`94`（见 README
+  「部署与更新」一节）。
+- 判据：`classify()` 是「要不要自动更新」的唯一判断处，L1 用判据表覆盖五个分支；
+  L2 在真 OpenFOAM 上装一次、更新一次，两次 `preflight` 都必须 6/6。
+- 不变：发布包仍是 15 个文件（`deploy.py` 依赖 `.git`，登记进 `make_release.sh` 的
+  `FORBIDDEN_EXACT`）；`release/*.md` 未改，因为包里没有 `deploy.py`。
+
 ### 0.3.0 — 2026-10-31
 
 - 新增 `scripts/dev_lib.py`（二次开发 / 用户库）：四个 stage `prepare` / `check` / `build` /
