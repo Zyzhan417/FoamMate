@@ -42,8 +42,9 @@ def _deploy_remote(tmp_path: Path) -> Path:
     """造一个可克隆的远端，内容 = REPO 这棵树。
 
     分支一（工作树）：`clone --bare` —— 远端直接是真实仓库历史。
-    分支二（导出树，无 `.git`）：把树复制进临时目录、`git init` + 提交，再把这个**普通仓库**当远端
-    （git 允许从非 bare 仓库 clone）。复制时排除 `__pycache__`，它们不该进远端。
+    分支二（导出树，无 `.git`）：把树复制进临时目录、`git init` + 提交，再由它 `clone --bare`
+    出一个**裸**远端。为什么要这第二步：往**非裸**仓库的当前分支 push 会被 git 拒绝
+    （`receive.denyCurrentBranch`，实测 `push` 退 1），而本测试要往远端 push 新提交来模拟上游更新。
     """
     if _git(REPO, "rev-parse", "--git-dir").returncode == 0:
         remote = tmp_path / "remote.git"
@@ -59,7 +60,11 @@ def _deploy_remote(tmp_path: Path) -> Path:
     assert _git(work, *ident, "init", "-q", "--initial-branch=main").returncode == 0
     assert _git(work, *ident, "add", "-A").returncode == 0
     assert _git(work, *ident, "commit", "-q", "-m", "export tree as remote").returncode == 0
-    return work
+
+    remote = tmp_path / "remote.git"
+    assert _git(tmp_path, "clone", "--quiet", "--bare", str(work),
+                str(remote)).returncode == 0, "从临时仓库 clone --bare 失败"
+    return remote
 
 
 def _deploy(env: dict[str, str], *args: str) -> tuple[subprocess.CompletedProcess[str], dict]:
