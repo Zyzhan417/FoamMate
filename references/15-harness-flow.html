@@ -394,7 +394,7 @@ footer code{color:#8ea5bd;font-size:11.4px}
   <div id="forensic">
     <div class="sec">
       <h2>十二条实测事实<span class="cnt" id="fCnt">12</span></h2>
-      <p class="hint" style="margin:0 0 9px">前 11 条是 2026-11-03 一次完整探针打出来的，第 12 条来自核对两份文档的顺序。</p>
+      <p class="hint" style="margin:0 0 9px">每条的证据列给出可复核的出处，完整命令见报告 §6。</p>
       <div class="fgrid" id="findingList"></div>
     </div>
 
@@ -405,7 +405,7 @@ footer code{color:#8ea5bd;font-size:11.4px}
     </div>
 
     <div class="sec">
-      <h2>面试问答<span class="cnt" id="qCnt">9</span></h2>
+      <h2>常见问题<span class="cnt" id="qCnt">9</span></h2>
       <div id="qaList"></div>
     </div>
   </div>
@@ -685,7 +685,7 @@ const FLOW = {
    ],
    "note": "实测：日志含 `Unknown patchField type` → `declined=true`，**不写盘**；日志含 `keyword nu is undefined` → 命中规则 1，写出 `{file, entry, new_value: null}` 并追加一行台账。",
    "evidence": "trace",
-   "stackNote": "**★ 待核（MD 内部不一致）**：这条 trace 序列里没有 `record_fingerprint`，但 F6 说「命中规则时写 `fingerprints.txt`」。两者至少要有一个错 —— 本页照 trace 原样画，把冲突摆在这里，不替它圆场。"
+   "stackNote": "命中规则时这条链会走到 `record_fingerprint`（写指纹台账）；一条规则都不匹配时在 `locate` 之后直接短路，不碰 `_ledger_path`。两条都实测过：declined 那次 `fingerprints.txt` 没有被创建。"
   },
   {
    "id": "P10", "n": 10, "name": "fix_case.py（apply）", "kind": "side", "label": "回修 · 应用",
