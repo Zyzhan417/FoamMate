@@ -45,7 +45,11 @@ agent 会话开始时扫所有 skill 的 `description`，命中「要建 case」
 agent 判断下一步看的是**退出码**，不是 stdout 文字：读到 `0` 继续，读到 `10` 停下问人，
 读到 `50` 去执行它给的那条 `source`。stdout 是给人看的，退出码是契约。
 
-**③ 一句话之后是 8 个独立进程、约 40 次函数进入、0 次跨进程函数调用。**
+**③ 一句话之后是 8 个独立进程、42 次函数进入、0 次跨进程函数调用。**
+
+34 这个数会算错：`ok ×6` 是 6 次进入不是 1 次。按 `--mode full` 的路径逐段加：
+preflight 8（`main` + `resolve_bash_rc` + `ok`×6）· parse 11 · find 2 · new_case 1 ·
+`pre` 2 · `run_case` 16 · `post` 2 = **42**。`foamDictionary` 是外部工具，不产生 harness 函数进入。
 
 进程之间不共享任何内存，唯一通过磁盘传递状态的是文件。下面 §2 逐个展开。
 
@@ -248,16 +252,24 @@ main → write_log     （+ 3 个内嵌 python3 heredoc 块，trace 报在结束
 **只解析日志，不跑求解。** 这带来一个必然结果：在只跑过 `--mode check` 的 case 上跑 post，
 G3 拿到的是「MISSING log.shortRun ⇒ 未判定，不是通过」，**退出码 3**。这是设计，不是 bug。
 
-### 2.9 进程 9/10 · `fix_case.py` —— 12 与 25 次函数进入 [trace]
+### 2.9 进程 9/10 · `fix_case.py` —— locate 17（命中）/ 12（declined），apply 22 次进入 [trace]
 
 > 下两段与下方函数表的行号均指 `scripts/fix_case.py`。
 
-`locate` 模式（真跑，日志含 `keyword nu is undefined`）：
+`locate` 模式（真跑，**命中规则 1**，日志含 `keyword nu is undefined`）：
 
 ```
-_UsageParser → main → _build_parser → _allowed_globs → _run_locate
-             → fatal_first_line → locate → fingerprint_of → error_signature → _payload → _emit
+_UsageParser → main → _build_parser → _allowed_globs → _run_locate → fatal_first_line
+             → locate → _rel_to_case → _is_allowed → fingerprint_of
+             → error_signature → seen_fingerprints → _ledger_path → record_fingerprint
+             → _ledger_path → _payload → _emit
 ```
+
+★ 这条链**比想象的长**，因为命中之后还要写指纹台账（`record_fingerprint`）。同一命令在
+「定位规则一条都不匹配」时会**短路**成 `… → locate → fingerprint_of → error_signature → _payload → _emit`，
+不碰 `_ledger_path`。两条都实测过：declined 那次 `fingerprints.txt` 没有被创建，命中那次多了一行。
+**这也是 F6 的机制**——`locate` 不是纯只读的，它写台账。
+（trace 里还会冒一个 `<genexpr>`，那是生成器表达式不是函数，已从两条链里滤掉。）
 
 `apply` 模式（真跑，成功路径）：
 
@@ -378,7 +390,7 @@ main(:362) → read_msh(:97) → convert(:215) → render(:171) → write_polyme
 > agent 靠 frontmatter 的 description 匹配到「建 case」这个意图，把文档读进上下文，然后按里面的
 > 命令块逐个调脚本。每个脚本是独立进程，协议就三条：argv 进，stdout + 退出码出，状态全落盘。
 > 所以控制流不在代码里，在 agent 的循环里；脚本只保证每一步可判定——同一输入同一输出，失败有独立退出码。
-> 一句话进来之后是 8 个进程、约 40 次函数进入、零次跨进程函数调用。这是 tool-use 的最原始形态，
+> 一句话进来之后是 8 个进程、42 次函数进入、零次跨进程函数调用。这是 tool-use 的最原始形态，
 > MCP 只是把这个契约标准化了。
 
 | 追问 | 答法 |

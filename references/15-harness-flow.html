@@ -3,41 +3,39 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>harness 流程地图 · 一句话创建一个 OpenFOAM case，每个文件什么时候被触发</title>
-<meta name="description" content="时间轴 + 文件地图 + 失败回修链：一套没有大脑的 harness，每个文件只在自己那一段被触发。">
+<title>一句话之后：入口、三条通道、10 个进程、函数调用栈</title>
+<meta name="description" content="harness 的入口是一份 SKILL.md 的 frontmatter；交互只有 argv / 退出码 / 磁盘三个通道；一句话之后是 8 个独立进程与42 次函数进入。">
 <style>
 *{box-sizing:border-box}
 :root{
   --bg:#0e1218; --panel:#151c25; --panel2:#1a2330; --line:#26313f; --line2:#35455a;
   --tx:#dde5ee; --mut:#93a1b2; --dim:#6b7a8a;
-  --p:#f2b45c; --h:#57a9e8; --s:#6ecf97; --fail:#e26a60;
-  --pbg:#2b2214; --hbg:#122430; --sbg:#13251a; --fbg:#2b1a17;
+  --h:#57a9e8; --p:#f2b45c; --s:#6ecf97; --fail:#e26a60; --g:#a98bf0;
+  --hbg:#122430; --pbg:#2b2214; --sbg:#13251a; --fbg:#2b1a17; --gbg:#201a33;
 }
 html,body{margin:0;background:var(--bg);color:var(--tx)}
-body{font:15px/1.78 system-ui,-apple-system,"Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",sans-serif;
+body{font:15px/1.75 system-ui,-apple-system,"Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",sans-serif;
   -webkit-font-smoothing:antialiased;letter-spacing:.01em}
 code,pre,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"DejaVu Sans Mono",monospace}
-.wrap{max-width:1440px;margin:0 auto;padding:22px 20px 60px}
+.wrap{max-width:1420px;margin:0 auto;padding:22px 20px 60px}
 h1{font-size:23px;line-height:1.5;margin:0 0 6px;font-weight:650}
-.sub{color:var(--mut);font-size:13px;margin:0 0 18px}
+.sub{color:var(--mut);font-size:13px;margin:0 0 16px}
 .sub code{color:#a9bed4}
-.top{background:linear-gradient(180deg,#161e28,#121820);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
-ol.three{list-style:none;padding:0;margin:0;display:grid;gap:9px}
-ol.three li{display:flex;gap:10px;align-items:baseline;font-size:14.5px;line-height:1.7}
-ol.three b{color:var(--h);flex:0 0 auto;font-weight:700}
-ol.three code{background:#0e141b;border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:12.5px;color:#b9cbe0}
-details.find{margin-top:14px;border-top:1px dashed var(--line);padding-top:12px}
-details.find>summary{cursor:pointer;color:var(--h);font-size:14px;font-weight:600;list-style:none;display:flex;align-items:center;gap:8px}
-details.find>summary::-webkit-details-marker{display:none}
-details.find>summary::before{content:"▸";color:var(--dim);transition:transform .15s}
-details.find[open]>summary::before{transform:rotate(90deg)}
-.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:10px;margin-top:12px}
-.fitem{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--line2);border-radius:9px;padding:10px 12px}
-.fitem .fid{display:inline-block;font:600 11.5px/1.6 ui-monospace,monospace;color:#0e1218;background:var(--mut);border-radius:4px;padding:0 6px;margin-right:7px;vertical-align:2px}
-.fitem .claim{font-size:13.5px;font-weight:600;line-height:1.65}
-.fitem .ev{font-size:12.5px;color:var(--mut);margin-top:6px;line-height:1.66;font-family:ui-monospace,Menlo,monospace;word-break:break-word}
-.fitem .imp{font-size:12.5px;color:#c9b48a;margin-top:5px;line-height:1.66}
-.fitem .imp::before{content:"→ ";color:var(--dim)}
+h2{font-size:15.5px;margin:0 0 9px;font-weight:650;color:#dbe7f4}
+h2 .cnt{font:11px/1.7 ui-monospace,monospace;color:var(--dim);border:1px solid var(--line2);
+  border-radius:4px;padding:0 5px;margin-left:7px;vertical-align:2px}
+.hint{font-size:12.3px;color:var(--dim);line-height:1.7}
+code{background:#0e141b;border:1px solid var(--line);border-radius:4px;padding:0 4px;font-size:12.4px;color:#b9cbe0}
+
+.q3{display:grid;grid-template-columns:repeat(auto-fit,minmax(258px,1fr));gap:10px;margin:0 0 13px}
+.q3>div{background:linear-gradient(180deg,#161e28,#121820);border:1px solid var(--line);border-radius:11px;padding:10px 13px;
+  font-size:13.4px;line-height:1.7;color:#c9d6e4}
+.q3 .ql{display:block;color:var(--h);font-size:11.5px;letter-spacing:.07em;margin-bottom:3px;font-weight:700}
+.pills{display:flex;gap:9px;flex-wrap:wrap;margin:0 0 2px}
+.pill{display:flex;align-items:baseline;gap:7px;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:6px 12px}
+.pill .n{font:700 19px/1 ui-monospace,monospace;color:var(--h)}
+.pill .l{font-size:12px;color:var(--mut)}
+.pill.a .n{color:var(--p)} .pill.b .n{color:var(--s)} .pill.c .n{color:var(--g)}
 
 nav.tabs{display:flex;gap:6px;margin:20px 0 14px;flex-wrap:wrap}
 nav.tabs button{background:var(--panel);color:var(--mut);border:1px solid var(--line);border-radius:9px;
@@ -45,283 +43,379 @@ nav.tabs button{background:var(--panel);color:var(--mut);border:1px solid var(--
 nav.tabs button:hover{color:var(--tx);border-color:var(--line2)}
 nav.tabs button[aria-selected="true"]{background:#1d2937;color:#eaf2fa;border-color:#3f5a76;box-shadow:inset 0 0 0 1px #2b3d50}
 nav.tabs .kbdhint{margin-left:auto;color:var(--dim);font-size:12px;align-self:center}
-
 .view{display:none}
 .view.on{display:block}
-
-/* ---------- 层 ---------- */
-.layers{display:flex;gap:10px;align-items:stretch;margin-bottom:12px;flex-wrap:wrap}
-.layer{flex:1 1 240px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:12.6px;line-height:1.62;color:var(--mut)}
-.layer b{display:block;font-size:13.2px;color:var(--tx);margin-bottom:2px}
-.layer.l1{border-left:3px solid var(--p)} .layer.l2{border-left:3px solid var(--h)} .layer.l3{border-left:3px solid var(--s)}
-.layers .gap{align-self:center;color:var(--dim);font-size:16px}
-.wrong{margin:0 0 16px;background:var(--fbg);border:1px solid #54302b;border-radius:9px;padding:8px 12px;
-  font-size:13px;color:#f0b6af;line-height:1.65}
-.wrong b{color:var(--fail)}
-
-/* ---------- 工具栏 / 图例 ---------- */
-.toolbar{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:0 0 10px;font-size:12.5px;color:var(--mut)}
-.legend{display:flex;gap:13px;align-items:center;flex-wrap:wrap}
-.legend i{width:11px;height:11px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:-1px}
-.legend .ln{width:26px;height:0;border-top:2px solid var(--dim);display:inline-block;margin-right:6px;vertical-align:3px}
-.legend .ln.dash{border-top-style:dashed}
-.legend .ln.red{border-top-color:var(--fail);border-top-width:2px}
-.tgl{margin-left:auto;background:var(--panel);border:1px solid var(--line);color:var(--mut);border-radius:7px;
-  padding:5px 11px;font:inherit;font-size:12.5px;cursor:pointer}
-.tgl:hover{color:var(--tx);border-color:var(--line2)}
-
-/* ---------- 时间轴 ---------- */
-.layout{display:grid;grid-template-columns:minmax(0,1fr) 372px;gap:16px;align-items:start}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 396px;gap:16px;align-items:start}
 .layout>div{min-width:0}
-.mount{min-width:0;align-self:stretch}
 @media (max-width:1080px){.layout{grid-template-columns:1fr}}
-.railwrap{position:relative;min-width:0;max-width:100%;overflow-x:auto;overflow-y:hidden;padding:58px 10px 12px;
-  border:1px solid var(--line);border-radius:12px;background:radial-gradient(120% 100% at 0 0,#151d27,#0f141a)}
-#edges{position:absolute;left:0;top:0;pointer-events:none;z-index:0}
-.e-main{stroke:#3d5471;stroke-width:2.5;fill:none;stroke-linecap:round}
-.e-arr{stroke:#3d5471;stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
-.e-dash{stroke:#46586e;stroke-width:1.6;fill:none;stroke-dasharray:4 4}
-.e-fail{stroke:var(--fail);stroke-width:2;fill:none;stroke-dasharray:5 4;opacity:.95}
-.e-f3{stroke:var(--fail);stroke-width:1.7;fill:none;stroke-dasharray:6 5;opacity:.8}
-.e-lab{fill:#f0a49b;font:11.5px ui-monospace,Menlo,monospace;letter-spacing:.2px}
-.rail{display:flex;gap:16px;align-items:flex-start;position:relative;z-index:1;min-width:max-content}
-.cell{display:flex;flex-direction:column;gap:8px;align-items:center;width:152px;flex:0 0 auto}
-.node{width:100%;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--c,#465868);
-  border-radius:10px;padding:8px 10px 9px;cursor:pointer;transition:.14s;position:relative}
-.node:hover{border-color:var(--line2);border-left-color:var(--c);background:#1b2431;transform:translateY(-1px)}
-.node:focus-visible{outline:2px solid var(--c);outline-offset:2px}
-.node.sel{background:#22303f;border-color:var(--c);box-shadow:0 0 0 1px var(--c),0 6px 18px rgba(0,0,0,.45)}
-.node.hit{box-shadow:0 0 0 2px #7f9ec4,0 6px 16px rgba(0,0,0,.4)}
-.node.dim{opacity:.42}
-.nid{font:700 13px/1.5 ui-monospace,Menlo,monospace;color:var(--c,#8fa4bb)}
-.nlabel{font-size:13.2px;font-weight:600;line-height:1.45;margin:1px 0 3px;color:#e6eef8}
-.nactor{font-size:11px;color:var(--mut)}
-.nfreq{font-size:11px;color:var(--dim);font-family:ui-monospace,Menlo,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.nbadge{margin-top:5px;display:inline-block;font-size:10.5px;line-height:1.6;padding:0 5px;border-radius:4px;
-  background:var(--fbg);border:1px solid #5a342e;color:#f0b2aa;font-family:ui-monospace,monospace}
-.nbadge.g{background:#16241c;border-color:#2c4a37;color:#a8dbbd}
-.nmini{display:inline-block;margin-top:5px;margin-right:4px;font-size:10.5px;padding:0 5px;border-radius:4px;
-  background:#111a24;border:1px solid var(--line2);color:#9db4cb;font-family:ui-monospace,monospace}
-.a-person{--c:var(--p)} .a-host{--c:var(--h)} .a-script{--c:var(--s)} .a-mixed{--c:#9d8ce0}
 
-.kidbox{width:100%;display:flex;flex-direction:column;gap:5px;padding-top:2px}
-.kidbox[data-kind="fail"]{border-left:2px dashed #6a352f;padding-left:7px;margin-left:6px}
-.chip{display:flex;align-items:center;gap:6px;background:#141c25;border:1px dashed #3a4a5c;border-radius:7px;
-  padding:4px 7px;cursor:pointer;font-size:11.5px;line-height:1.5;color:#c3d2e2;transition:.13s}
-.chip:hover{border-color:#5c7896;background:#182231}
-.chip b{font-family:ui-monospace,monospace;color:#93aac2;font-weight:700}
-.chip .cf{margin-left:auto;color:var(--dim);font-size:10px;font-family:ui-monospace,monospace;white-space:nowrap}
-.chip.sel{border-style:solid;border-color:#7f9ec4;background:#1e2a38}
-.chip.fail{border-color:#5e332c;background:#1e1514;color:#e8b3ac}
-.chip.fail b{color:#f0938a}
-.chip .lb{display:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rail.expanded .chip .lb{display:inline}
-.rail.expanded .cell{width:186px}
+/* ---------- ① 入口 ---------- */
+.entrygrid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:14px;align-items:start}
+@media (max-width:980px){.entrygrid{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 15px}
+.panel.hl{border-left:3px solid var(--h)}
+.steps{display:flex;flex-direction:column;gap:0}
+.step{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:7px 0}
+.step .si{width:22px;height:22px;border-radius:6px;background:#111a24;border:1px solid var(--line2);
+  font:700 11.5px/20px ui-monospace,monospace;text-align:center;color:var(--h);margin-top:2px}
+.step .st{font-size:13.4px;line-height:1.68;color:#cddaea}
+.step .st b{color:#eaf2fa;font-weight:650}
+.step .st .mono{font-size:12.2px;color:#a7c0d8}
+.quote{margin:10px 0 0;padding:9px 12px;background:#101822;border-left:3px solid var(--h);border-radius:7px;
+  font-size:13.2px;line-height:1.78;color:#c6d6e6}
+.punch{margin:12px 0 0;text-align:center;font-size:14.5px;font-weight:650;color:#f0c98a;letter-spacing:.02em}
+.yaml{margin:0;background:#0b1015;border:1px solid var(--line);border-radius:9px;padding:10px 12px;
+  font-size:12.1px;line-height:1.8;color:#bdd0e4;white-space:pre-wrap;word-break:break-word}
+.chan{display:flex;flex-direction:column;gap:9px;margin-top:2px}
+.ch{display:grid;grid-template-columns:104px 1fr;gap:11px;background:var(--panel2);border:1px solid var(--line);
+  border-radius:9px;padding:9px 11px}
+.ch .cd{font-size:11.5px;color:var(--mut);line-height:1.6}
+.ch .cd b{display:block;font-size:12.8px;color:#e6eef8;font-weight:650;margin-bottom:1px}
+.ch .cn{font:700 12px/1.7 ui-monospace,monospace;color:var(--h)}
+.ch .cf{font-size:12.2px;color:#b6c8dc;line-height:1.65;margin-top:2px;word-break:break-word}
+.kill{margin:14px 0 0;border:1px solid #6a352f;background:linear-gradient(180deg,#241614,#180f0e);border-radius:12px;
+  padding:13px 15px;box-shadow:inset 0 0 0 1px rgba(226,106,96,.12)}
+.kill .kh{display:flex;align-items:center;gap:8px;font-size:13.6px;font-weight:650;color:#f3b0a8;margin-bottom:8px}
+.kill .kh .x{font:700 12px/1.6 ui-monospace,monospace;background:var(--fbg);border:1px solid #6a352f;color:#f3a79f;
+  border-radius:4px;padding:0 6px}
+.kill .kc{font-size:12.8px;color:#e0c2be;line-height:1.7;margin-top:7px}
+.kill .kc b{color:#ffd4cf}
+.kill .ok{font:700 12.5px/1.7 ui-monospace,monospace;color:#a3e0bd}
 
-.sidetrack{margin-top:12px;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:10px 12px}
-.sidetrack .stl{font-size:12px;color:var(--mut);margin-bottom:7px}
-.sidetrack .stl b{color:#c9d7e6}
-.sidechips{display:flex;gap:9px;flex-wrap:wrap}
-.sidechips .chip{width:auto;min-width:0}
+/* ---------- 复制 ---------- */
+.cmdbox{position:relative;margin:0;background:#0b1015;border:1px solid var(--line);border-radius:9px}
+.cmdbox pre{margin:0;padding:9px 76px 9px 11px;font-size:12px;line-height:1.75;white-space:pre-wrap;
+  word-break:break-all;color:#bdd0e4}
+.cp{background:#1b2735;border:1px solid var(--line2);color:#a9c0d8;border-radius:6px;
+  padding:3px 9px;font:inherit;font-size:11.5px;cursor:pointer;transition:.13s}
+.cp:hover{background:#243244;color:#e6eef8}
+.cp.ok{background:#20402c;border-color:#356647;color:#b7ecc9}
+.cmdbox>.cp{position:absolute;right:7px;top:7px}
+
+/* ---------- ② 进程链 ---------- */
+.toolbar{display:flex;gap:13px;align-items:center;flex-wrap:wrap;margin:0 0 10px;font-size:12.3px;color:var(--mut)}
+.legend{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.legend i{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:-1px}
+.ev{font:600 10px/1.7 ui-monospace,monospace;padding:0 5px;border-radius:4px;border:1px solid;white-space:nowrap}
+.ev.tr{color:#a3e0bd;border-color:#2c4a37;background:var(--sbg)}
+.ev.as{color:#c3b2f0;border-color:#463a6b;background:var(--gbg)}
+.ev.ex{color:#b9c4d2;border-color:#3b4653;background:#161c23}
+.railwrap{overflow-x:auto;overflow-y:hidden;border:1px solid var(--line);border-radius:12px;
+  background:radial-gradient(120% 100% at 0 0,#151d27,#0f141a);padding:14px 14px 16px}
+.rail{display:flex;align-items:stretch;min-width:max-content}
+.railwrap::-webkit-scrollbar{height:9px}
+.railwrap::-webkit-scrollbar-thumb{background:#2b3a4b;border-radius:5px}
+.pcard{width:150px;flex:0 0 auto;background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--h);
+  border-radius:10px;padding:8px 10px 9px;cursor:pointer;transition:.14s;position:relative;outline:none}
+.pcard:hover{border-color:var(--line2);background:#1b2431;transform:translateY(-1px)}
+.pcard:focus-visible{box-shadow:0 0 0 2px #6d93bb}
+.pcard.sel{background:#22303f;border-color:#5c86b0;box-shadow:0 0 0 1px #4b6b8c,0 6px 18px rgba(0,0,0,.45)}
+.pcard.hit{box-shadow:0 0 0 2px #7f9ec4}
+.pcard.dim{opacity:.4}
+.pcard.side{border-top-color:var(--fail);background:#1a1416}
+.pcard.side:hover{background:#221819}
+.prow{display:flex;align-items:center;justify-content:space-between;gap:5px}
+.pn{font:700 12px/1.6 ui-monospace,monospace;color:var(--h)}
+.pcard.side .pn{color:#f09088}
+.pnm{font-size:12.8px;font-weight:650;line-height:1.42;color:#e8f1fa;margin:3px 0 2px}
+.pfile{font:10.7px/1.5 ui-monospace,Menlo,monospace;color:#93a6ba;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;margin-bottom:4px}
+.pl{font-size:11.4px;color:var(--mut);line-height:1.5}
+.po{font-size:10.8px;color:var(--dim);margin-top:6px;font-family:ui-monospace,monospace;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.parw{color:#3d5471;font-size:14px;padding:0 6px;align-self:center;flex:0 0 auto}
+.parw.red{color:#8a4a42}
+.redzone{margin-top:13px;border:1px dashed #6a352f;border-radius:12px;padding:11px 13px;background:#160f0e}
+.redzone .rh{font-size:12.4px;color:#e8a99f;margin-bottom:10px;line-height:1.65}
+.redzone .rh b{color:#ffb9b0}
+.rrow{display:flex;align-items:center;flex-wrap:wrap}
+.rsrc{font:700 11.5px/1.6 ui-monospace,monospace;color:#e8a99f;border:1px solid #6a352f;background:#22140f;
+  border-radius:6px;padding:4px 9px}
+.rback{font:700 11.5px/1.6 ui-monospace,monospace;color:#a3e0bd;border:1px solid #2c4a37;background:var(--sbg);
+  border-radius:6px;padding:4px 9px;margin-left:6px}
+.sidestrip{margin-top:13px;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:10px 12px}
+.sidestrip .sh{font-size:12.2px;color:var(--mut);margin-bottom:7px}
+.sidestrip .sh b{color:#c9d7e6}
+.sidechips{display:flex;gap:8px;flex-wrap:wrap}
+.schip{background:#141c25;border:1px dashed #3a4a5c;border-radius:7px;padding:5px 9px;font-size:11.6px;
+  line-height:1.55;color:#c3d2e2}
+.schip b{font-family:ui-monospace,monospace;color:#93aac2}
+.schip i{color:var(--dim);font-style:normal;font-family:ui-monospace,monospace;font-size:10.5px;margin-left:5px}
+
+/* 文件反查表 */
+details.rev{margin-top:13px}
+details.rev>summary{cursor:pointer;color:var(--h);font-size:13px;font-weight:600;list-style:none;
+  padding:8px 12px;background:var(--panel);border:1px solid var(--line);border-radius:9px}
+details.rev>summary::-webkit-details-marker{display:none}
+details.rev>summary::before{content:"▸ ";color:var(--dim)}
+details.rev[open]>summary::before{content:"▾ "}
+details.rev>summary:hover{color:#8cc7f0}
+.revtable{width:100%;border-collapse:collapse;margin-top:9px;font-size:12.3px}
+.revtable th{text-align:left;color:var(--dim);font-weight:500;font-size:11.5px;padding:5px 9px;
+  border-bottom:1px solid var(--line2);white-space:nowrap}
+.revtable td{padding:6px 9px;border-bottom:1px solid #1c2530;color:#c7d5e3;vertical-align:top;line-height:1.6}
+.revtable tr:hover td{background:#161f29}
+.revtable td.p{font-family:ui-monospace,monospace;font-size:11.8px;color:#d5e3f1;word-break:break-all}
+.revtable .pc{display:inline-block;font:600 10.5px/1.7 ui-monospace,monospace;color:#0e1218;background:var(--h);
+  border-radius:4px;padding:0 5px;margin:1px 3px 1px 0;cursor:pointer;border:none}
+.revtable .pc.side{background:var(--fail);color:#1a0f0e}
+.revtable .pc.none{background:#2a3543;color:#7b8ba0;cursor:default}
+
+/* ---------- ③ 函数栈 ---------- */
+.stackhead{display:flex;gap:11px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+select{background:var(--panel2);color:var(--tx);border:1px solid var(--line2);border-radius:8px;
+  padding:6px 9px;font:inherit;font-size:12.8px;cursor:pointer}
+.statbar{display:flex;gap:9px;flex-wrap:wrap;margin:0 0 12px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:7px 12px;min-width:104px}
+.stat .sn{font:700 18px/1.15 ui-monospace,monospace;color:#eaf2fa}
+.stat .sl{font-size:11.2px;color:var(--mut);margin-top:2px}
+.stat.r .sn{color:var(--s)} .stat.w .sn{color:var(--p)} .stat.z .sn{color:var(--mut)}
+.stackwrap{background:linear-gradient(180deg,#141b24,#0f141a);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.snode{position:relative;padding-left:24px;margin-left:5px;border-left:1px solid #2c3a4a}
+.snode:last-child{border-left-color:transparent}
+.snode::before{content:"";position:absolute;left:-4.5px;top:15px;width:8px;height:8px;border-radius:50%;
+  background:#3d4a59;border:1px solid #0b1015}
+.snode.io-read::before{background:var(--s);box-shadow:0 0 0 3px rgba(110,207,151,.13)}
+.snode.io-write::before{background:var(--p);box-shadow:0 0 0 3px rgba(242,180,92,.13)}
+.sbox{padding:6px 0 11px}
+.sfn{font:650 13.5px/1.5 ui-monospace,monospace;color:#e6eef8}
+.sline{font:11.5px/1.5 ui-monospace,monospace;color:var(--h);margin-left:8px}
+.sline.noline{color:#5d6b7b}
+.sarg{display:inline-block;font:11px/1.7 ui-monospace,monospace;color:#d3bd8c;background:#221d12;
+  border:1px solid #4a3d22;border-radius:4px;padding:0 6px;margin-left:7px;vertical-align:1px}
+.sdup{display:inline-block;font:700 10.5px/1.7 ui-monospace,monospace;color:#0b1219;background:var(--s);
+  border-radius:4px;padding:0 6px;margin-left:7px;vertical-align:1px}
+.sio{display:inline-block;font:600 10px/1.7 ui-monospace,monospace;padding:0 5px;border-radius:4px;
+  margin-left:7px;vertical-align:1px;border:1px solid}
+.sio.read{color:#a3e0bd;border-color:#2c4a37;background:var(--sbg)}
+.sio.write{color:#f4c67f;border-color:#5b4526;background:var(--pbg)}
+.sio.none{color:#6b7a8a;border-color:#2b3542;background:#121820}
+.swhat{font-size:12.5px;color:var(--mut);line-height:1.7;margin-top:3px;word-break:break-word}
+.swhat miss{color:#5d6b7b}
+.sbanner{margin:0 0 12px;font-size:13px;line-height:1.78;color:#d3c3a0;background:#1c1a12;
+  border-left:3px solid #6b5a2c;border-radius:7px;padding:9px 12px}
+.sbanner b{color:#ffd9a0}
+.sfoot{margin-top:11px;font-size:11.8px;color:var(--dim);line-height:1.7;border-top:1px solid #1c2530;padding-top:9px}
 
 /* ---------- 详情卡 ---------- */
 #detail{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 15px;
   position:sticky;top:14px;max-height:calc(100vh - 40px);overflow:auto}
-#detail .ph{color:var(--dim);font-size:13px;line-height:1.8}
-#detail .ph b{color:var(--mut)}
-.dhead{display:flex;gap:11px;align-items:flex-start;margin-bottom:10px}
-.did{font:700 15px/1.3 ui-monospace,Menlo,monospace;color:var(--c,#8fa4bb);background:#0f1620;
-  border:1px solid var(--line2);border-left:4px solid var(--c,#465868);border-radius:7px;padding:5px 8px;flex:0 0 auto}
-.dtitle{font-size:15.5px;font-weight:650;line-height:1.45}
-.dsub{font-size:11.5px;color:var(--mut);margin-top:3px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-.tag{font-size:10.5px;padding:1px 6px;border-radius:4px;border:1px solid var(--line2);color:#a9bed4;background:#111a24;
-  font-family:ui-monospace,monospace;line-height:1.7}
-.tag.p{color:#f4c67f;border-color:#5b4526;background:var(--pbg)}
-.tag.h{color:#8cc7f0;border-color:#2c4a63;background:var(--hbg)}
+#detail .ph{color:var(--dim);font-size:12.8px;line-height:1.8}
+.dhead{display:flex;gap:11px;align-items:flex-start;margin-bottom:9px}
+.did{font:700 14px/1.3 ui-monospace,monospace;color:var(--h);background:#0f1620;border:1px solid var(--line2);
+  border-left:4px solid var(--h);border-radius:7px;padding:5px 8px;flex:0 0 auto}
+.dtitle{font-size:14.5px;font-weight:650;line-height:1.45;word-break:break-all}
+.dsub{font-size:11.5px;color:var(--mut);margin-top:4px;display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.tag{font-size:10.5px;padding:1px 6px;border-radius:4px;border:1px solid var(--line2);color:#a9bed4;
+  background:#111a24;font-family:ui-monospace,monospace;line-height:1.7}
 .tag.s{color:#a3e0bd;border-color:#2c4a37;background:var(--sbg)}
 .tag.f{color:#f3a79f;border-color:#5a342e;background:var(--fbg)}
-.tag.m{color:#c3b2f0;border-color:#463a6b;background:#1d1930}
-.kv{width:100%;border-collapse:collapse;margin:2px 0 10px;font-size:12.6px}
-.kv th{text-align:left;color:var(--dim);font-weight:500;width:74px;padding:4px 8px 4px 0;vertical-align:top;
-  white-space:nowrap;font-size:12px}
-.kv td{padding:4px 0;color:#d3dfeb;line-height:1.66;word-break:break-word}
+.kv{width:100%;border-collapse:collapse;margin:2px 0 10px;font-size:12.5px}
+.kv th{text-align:left;color:var(--dim);font-weight:500;width:66px;padding:4px 8px 4px 0;vertical-align:top;
+  white-space:nowrap;font-size:11.8px}
+.kv td{padding:4px 0;color:#d3dfeb;line-height:1.65;word-break:break-word}
 .kv tr+tr th,.kv tr+tr td{border-top:1px solid #1e2833}
-.kv td .mono{font-size:11.8px;color:#b6c8dc}
-.cmdbox{position:relative;margin:0 0 11px;background:#0b1015;border:1px solid var(--line);border-radius:9px}
-.cmdbox pre{margin:0;padding:9px 74px 9px 11px;font-size:12px;line-height:1.75;white-space:pre-wrap;word-break:break-all;color:#bdd0e4}
-.cmdbox .cp{position:absolute;right:7px;top:7px;background:#1b2735;border:1px solid var(--line2);color:#a9c0d8;
-  border-radius:6px;padding:3px 9px;font:inherit;font-size:11.5px;cursor:pointer;transition:.13s}
-.cmdbox .cp:hover{background:#243244;color:#e6eef8}
-.cmdbox .cp.ok{background:#20402c;border-color:#356647;color:#b7ecc9}
-.sect{font-size:11.5px;color:var(--dim);text-transform:none;letter-spacing:.06em;margin:12px 0 5px;
+.kv td.mono{font-size:11.7px;color:#b6c8dc}
+.sect{font-size:11.4px;color:var(--dim);letter-spacing:.06em;margin:12px 0 5px;
   border-top:1px solid #1e2833;padding-top:9px}
-ul.plain{margin:0;padding-left:17px;font-size:12.6px;line-height:1.72;color:#cbd8e6}
+ul.plain{margin:0;padding-left:16px;font-size:12.4px;line-height:1.72;color:#cbd8e6}
 ul.plain li{margin:1px 0}
 ul.plain li::marker{color:var(--dim)}
-.note{font-size:12.6px;line-height:1.75;color:#c6b795;background:#1c1a12;border-left:3px solid #6b5a2c;
-  border-radius:6px;padding:8px 10px;margin-top:6px;word-break:break-word}
-.hits{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
-.hit{display:inline-flex;gap:4px;align-items:center;font:11.5px/1.7 ui-monospace,monospace;padding:0 6px;
-  border-radius:5px;border:1px solid var(--line2);background:#111a24;color:#a9bed4;cursor:pointer}
-.hit:hover{border-color:#5c7896;color:#e6eef8}
-.hit.w{color:#f4c67f;border-color:#5b4526;background:var(--pbg)}
-.hit.r{color:#8cc7f0;border-color:#2c4a63;background:var(--hbg)}
-.hit.n{color:#a3e0bd;border-color:#2c4a37;background:var(--sbg)}
-.hit.z{color:var(--dim);border-style:dashed;cursor:default}
-.hit .dd{font-size:10px;opacity:.85}
-.fref{margin-top:8px;display:flex;flex-direction:column;gap:5px}
-.fref .fr{font-size:11.8px;line-height:1.66;color:var(--mut);background:#131b24;border:1px solid var(--line);
-  border-radius:6px;padding:5px 8px}
-.fref .fr b{color:#d8a48b;font-family:ui-monospace,monospace}
+.note{font-size:12.4px;line-height:1.75;color:#c6b795;background:#1c1a12;border-left:3px solid #6b5a2c;
+  border-radius:6px;padding:8px 10px;margin-top:4px;word-break:break-word}
+.fntable{width:100%;border-collapse:collapse;font-size:11.9px;margin-top:2px}
+.fntable th{text-align:left;color:var(--dim);font-weight:500;font-size:11px;padding:3px 6px 3px 0;
+  border-bottom:1px solid var(--line);white-space:nowrap}
+.fntable td{padding:4px 6px 4px 0;border-bottom:1px solid #1b232d;vertical-align:top;line-height:1.6;color:#c4d3e2}
+.fntable td.fn{font-family:ui-monospace,monospace;color:#dbe8f5;white-space:nowrap}
+.fntable td.ln{font-family:ui-monospace,monospace;color:var(--h);white-space:nowrap}
+.fntable td.ln.noline{color:#57646f}
+.gostack{width:100%;margin-top:12px;background:#132430;border:1px solid #2c4a63;color:#8cc7f0;border-radius:8px;
+  padding:7px 12px;font:inherit;font-size:12.8px;cursor:pointer;transition:.13s}
+.gostack:hover{background:#17303f;color:#bfe3ff;border-color:#3d6a8c}
+.minitable{width:100%;border-collapse:collapse;font-size:11.6px;margin-top:2px}
+.minitable th{text-align:left;color:var(--dim);font-weight:500;font-size:11px;padding:3px 6px 3px 0;
+  border-bottom:1px solid var(--line);white-space:nowrap}
+.minitable td{padding:3px 6px 3px 0;border-bottom:1px solid #1b232d;color:#c4d3e2;line-height:1.55}
 
-/* ---------- 文件地图 ---------- */
-.fgroup{margin-bottom:16px}
-.fgroup h3{font-size:13.5px;margin:0 0 8px;color:#cddaea;font-weight:600;display:flex;align-items:center;gap:8px}
-.fgroup h3 .n{font:11px/1.6 ui-monospace,monospace;color:var(--dim);border:1px solid var(--line2);border-radius:4px;padding:0 5px}
-.fgroup h3 .hint{font-size:11.5px;color:var(--dim);font-weight:400}
-.fgrid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(292px,1fr));gap:9px}
-.fcard{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 11px;cursor:pointer;transition:.13s}
-.fcard:hover{border-color:var(--line2);background:#1a2330}
-.fcard.sel{border-color:#6d93bb;box-shadow:0 0 0 1px #4b6b8c}
-.fcard.hitcard{border-color:#4f7397;background:#18222e}
-.fcard.dim{opacity:.4}
-.fpath{font:12.4px/1.55 ui-monospace,Menlo,monospace;color:#d5e3f1;word-break:break-all}
-.fmeta{display:flex;gap:5px;flex-wrap:wrap;margin:5px 0 6px}
-.fhits{display:flex;flex-wrap:wrap;gap:4px}
-details.gov summary{cursor:pointer;color:var(--mut);font-size:13px;padding:7px 11px;background:var(--panel);
-  border:1px dashed var(--line2);border-radius:8px;list-style:none}
-details.gov summary::-webkit-details-marker{display:none}
-details.gov summary:hover{color:var(--tx)}
-details.gov[open] summary{margin-bottom:9px;border-style:solid}
-details.gov summary .warn{color:#d8a48b}
-.strip{background:var(--panel);border:1px solid var(--line);border-left:3px solid #6d93bb;border-radius:9px;
-  padding:9px 12px;margin-bottom:14px;font-size:12.6px;color:var(--mut);line-height:1.8}
-.strip .sp{font-size:12px;color:var(--dim);margin-right:7px}
-
-/* ---------- 失败链 ---------- */
-.failhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-.failhead .chain{display:flex;align-items:center;gap:7px;font:700 14px/1 ui-monospace,monospace;color:#f09088}
-.failhead .chain .ar{color:#8a5a54;font-weight:400}
-.failhead .note2{font-size:12.3px;color:var(--mut);line-height:1.7}
-.play{background:#2a1a17;border:1px solid #5e332c;color:#f3b0a8;border-radius:8px;padding:6px 13px;
-  font:inherit;font-size:12.5px;cursor:pointer}
-.play:hover{background:#361f1b}
-.play.on{background:#4a2520;border-color:#8a4a40;color:#ffd4cf}
-.failgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:10px}
-.stage{background:var(--panel);border:1px solid #3b2724;border-top:3px solid var(--fail);border-radius:10px;
-  padding:10px 12px;position:relative;transition:.16s}
-.stage .sn{font:700 11.5px/1.6 ui-monospace,monospace;color:#d99c94}
-.stage .st{font-size:13.6px;font-weight:650;margin:2px 0 5px;color:#f1ddd9}
-.stage .sd{font-size:12.3px;line-height:1.7;color:#c2b3b0}
-.stage .sd code{color:#e6c0b8;background:#170f0e;border:1px solid #3b2724;border-radius:4px;padding:0 4px;font-size:11.6px}
-.stage .snid{position:absolute;right:9px;top:8px;font:700 11px/1.6 ui-monospace,monospace;color:#b87a72;
-  border:1px solid #5e332c;border-radius:4px;padding:0 5px;background:#1e1513}
-.stage.lit{background:#2a1a17;border-color:#7d423a;box-shadow:0 0 0 1px #7d423a,0 8px 22px rgba(0,0,0,.5);transform:translateY(-2px)}
-.stage.sel{box-shadow:0 0 0 2px #a4564a}
-.stage .ff{margin-top:7px;font-size:11.4px;line-height:1.65;color:#d8a48b;border-top:1px dashed #4a2f2b;padding-top:6px}
-.stage .ff b{font-family:ui-monospace,monospace;color:#f0b3a3}
-footer{margin-top:30px;border-top:1px solid var(--line);padding-top:12px;font-size:11.8px;color:var(--dim);line-height:1.8}
-footer code{color:#8ea5bd}
+/* ---------- ④ 取证 ---------- */
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:9px}
+.fitem{background:var(--panel);border:1px solid var(--line);border-left:3px solid #6d93bb;border-radius:9px;padding:9px 12px}
+.fitem .fid{display:inline-block;font:600 11px/1.6 ui-monospace,monospace;color:#0e1218;background:#93a1b2;
+  border-radius:4px;padding:0 6px;margin-right:7px;vertical-align:2px}
+.fitem .claim{font-size:13.2px;font-weight:600;line-height:1.65}
+.fitem .ev2{font-size:12.2px;color:var(--mut);margin-top:6px;line-height:1.66;word-break:break-word}
+.chk{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:9px}
+.chk .ct{font-size:13.2px;font-weight:650;color:#e6eef8;margin-bottom:7px}
+.chk .ce{font-size:12.3px;color:#a9c9a9;margin-top:7px;line-height:1.68}
+.chk .ce b{color:#c9e8c9}
+.chk .cmdbox{background:#0b1015}
+.qa{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--h);border-radius:9px;
+  padding:10px 12px;margin-bottom:9px}
+.qa.a30{border-left-color:var(--p);background:linear-gradient(180deg,#1c1912,#151c25)}
+.qa .qq{font-size:13.2px;font-weight:650;color:#dbe8f5}
+.qa .aa{font-size:12.9px;color:#c3d2e2;line-height:1.82;margin-top:5px}
+.qa .aa code{font-size:12px}
+footer{margin-top:30px;border-top:1px solid var(--line);padding-top:12px;font-size:11.6px;color:var(--dim);line-height:1.85}
+footer code{color:#8ea5bd;font-size:11.4px}
+.sec{margin-bottom:22px}
 </style>
 </head>
 <body>
-
 <div class="wrap">
+
 <header>
-  <h1>一句话 → 一个能跑的 OpenFOAM case：harness 的每个文件在什么时候被触发</h1>
-  <p class="sub">事实源：<code>.hermes/plans/2026-11-03-flow-facts.json</code>（编排方实测，不是子代理自述）· 时间轴与文件地图由同一份 <code>steps[]</code> 渲染 · 本页不另造数值</p>
+  <h1>一句话之后：入口、三条通道、10 个进程、函数调用栈</h1>
+  <p class="sub">事实源 <code>references/15-harness-flow.md</code> · 每个函数序列都标了采集方式（<code>trace</code> / <code>ast</code> / <code>external</code>）· 本页不另造数值与函数名</p>
 
-  <div class="top">
-    <ol class="three">
-      <li><b>①</b><span><b style="color:var(--h)">harness 没有大脑，大脑是宿主。</b>没有 <code>main()</code>、没有自然语言入口、不自己循环——是宿主读 <code>release/SKILL.md</code>，决定下一步调哪个脚本。</span></li>
-      <li><b>②</b><span><b style="color:var(--h)">每个文件只在自己那一段被触发。</b>其余 90% 的时间里它只是躺在磁盘上：同一时刻真正参与的文件通常只有 1–3 个。</span></li>
-      <li><b>③</b><span><b style="color:var(--h)">门全绿 ≠ 需求被满足。</b>实测中 <code>OBJ=mismatch</code>（需求 steady vs ddtSchemes=Euler）、<code>RES=marginal</code> 时五门照样全绿。</span></li>
-    </ol>
-
-    <details class="find" id="findings">
-      <summary>实测发现 11 条（点开 · 每一条都在打破一条「想当然」的直线）</summary>
-      <div class="fgrid" id="findingList"></div>
-    </details>
+  <div class="q3">
+    <div><span class="ql">① 入口在哪</span>不是任何可执行文件。入口是 <code>release/SKILL.md</code> 的 YAML frontmatter —— agent 靠 <code>description</code> 匹配到意图，才把文档读进上下文。</div>
+    <div><span class="ql">② 怎么交互</span>只有三个通道：<b>argv + 环境变量</b>进、<b>stdout / stderr / 退出码</b>出、<b>磁盘</b>互。没有 stdin、没有 socket。</div>
+    <div><span class="ql">③ 经过哪些函数</span>8 个独立进程、42 次函数进入、<b>0 次跨进程函数调用</b>。进程间不共享内存，上下文在文件系统里。</div>
   </div>
+
+  <div class="pills" id="pills"></div>
 </header>
 
 <nav class="tabs" role="tablist">
-  <button role="tab" data-view="timeline" aria-selected="true">① 时间轴</button>
-  <button role="tab" data-view="filemap" aria-selected="false">② 文件地图</button>
-  <button role="tab" data-view="repair" aria-selected="false">③ 失败回修链</button>
-  <span class="kbdhint">键盘 ← / → 在时刻间移动 · URL hash 记住当前节点</span>
+  <button role="tab" data-view="entry" aria-selected="true">① 入口与通道</button>
+  <button role="tab" data-view="procs" aria-selected="false">② 进程链</button>
+  <button role="tab" data-view="stack" aria-selected="false">③ 函数调用栈</button>
+  <button role="tab" data-view="forensic" aria-selected="false">④ 取证</button>
+  <span class="kbdhint">键盘 1–4 切视图 · ← / → 在进程间移动 · URL hash 记住视图与选中进程</span>
 </nav>
 
-<!-- ========== 视图一：时间轴 ========== -->
-<section class="view on" id="view-timeline">
-  <div class="layers">
-    <div class="layer l1"><b>L1 · 人</b>决定要什么、改字典、裁决物理取舍、判断结果可信不可信</div>
-    <div class="gap">→</div>
-    <div class="layer l2"><b>L2 · 宿主 agent</b>读 release/SKILL.md → 决定下一步 → 调某一个脚本 → 读退出码</div>
-    <div class="gap">→</div>
-    <div class="layer l3"><b>L3 · 脚本</b>只做一件确定性的事；单例链路里脚本之间零调用（只有 batch.py 会调别的脚本）</div>
-  </div>
-  <p class="wrong"><b>✗ 不是「程序依次调用脚本」。</b>scripts 下没有任何 main() 驱动六步、也没有脚本 import 另一个脚本（batch.py 除外）——第一层永远是「宿主读文档 → 决定 → 调某个脚本」（F1）。</p>
+<!-- ================= ① 入口与通道 ================= -->
+<section class="view on" id="view-entry">
+  <div class="entrygrid">
+    <div>
+      <div class="panel hl">
+        <h2>入口：一份文档的前 4 行</h2>
+        <div class="steps" id="entrySteps"></div>
+        <div class="quote" id="entryQuote"></div>
+        <div class="sect">逐字内容 · <code id="entryPath"></code></div>
+        <div class="cmdbox" style="margin-top:5px">
+          <pre id="entryYaml"></pre>
+          <button class="cp" type="button">复制</button>
+        </div>
+        <div class="hint" style="margin-top:7px" id="entryHint"></div>
+        <p class="punch" id="entryPunch"></p>
+      </div>
 
+      <div class="kill" id="killBox">
+        <div class="kh"><span class="x">证伪</span>「harness 有一个 stdin 入口 / 一个 main() 驱动六步」</div>
+        <div class="cmdbox">
+          <pre>grep -n "input()\|sys.stdin.read\|/dev/stdin" scripts/*.py scripts/*.sh</pre>
+          <button class="cp" type="button">复制</button>
+        </div>
+        <div class="kc"><b>输出为空 —— 十个脚本没有一个读 stdin。</b>所以「一句话进来」这件事从来没有发生在进程内部：<br>
+          每次调用都是 <span class="ok">argv 进 → 干活 → stdout + 退出码出</span>。<br>
+          对操作系统来说，十个脚本各自就是入口（<code>main()</code> + argparse，或 bash 直接执行）；
+          对 agent 来说，入口是那份文档。两种「入口」都不是自然语言入口。</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel">
+        <h2>三个通道 · 其中两个是单向的</h2>
+        <div class="chan" id="chanList"></div>
+        <div class="quote" style="border-left-color:#6d93bb">没有 stdin、没有 socket、没有 API、没有共享内存。每一步都是「从磁盘读状态 → 干活 → 往磁盘写状态 → 吐一个退出码」。进程随时死掉都不影响下一步，因为 <b>上下文不在内存里，在文件系统里</b>。</div>
+        <div class="quote" style="border-left-color:#f2b45c">agent 判断下一步看的是 <b>退出码</b>，不是 stdout 文字：读到 <code>0</code> 继续，读到 <code>10</code> 停下问人，读到 <code>50</code> 去执行它给的那条 <code>source</code>。stdout 是给人看的，<b>退出码是契约</b>。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ② 进程链 ================= -->
+<section class="view" id="view-procs">
   <div class="toolbar">
     <div class="legend">
-      <span><i style="background:var(--p)"></i>人（L1）</span>
-      <span><i style="background:var(--h)"></i>宿主（L2）</span>
-      <span><i style="background:var(--s)"></i>脚本互调（L3 · 单例链路里 0 次）</span>
-      <span><i style="background:#9d8ce0"></i>宿主+人</span>
-      <span><span class="ln"></span>主线</span>
-      <span><span class="ln dash"></span>旁支（默认折叠）</span>
-      <span><span class="ln red"></span>失败回修</span>
+      <span><i style="background:var(--h)"></i>主进程 1–8</span>
+      <span><i style="background:var(--fail)"></i>回修时插入 9–10</span>
+      <span><span class="ev tr" style="margin-right:0">trace</span> 实际跑出来的序列</span>
+      <span><span class="ev as" style="margin-right:0">ast</span> 静态解析</span>
+      <span><span class="ev ex" style="margin-right:0">external</span> 系统工具</span>
     </div>
-    <button class="tgl" id="expandBtn">旁支标签：折叠 / 展开</button>
+    <span style="margin-left:auto;color:var(--dim);font-size:11.8px">点任一卡看详情 · 红边不在主线上</span>
   </div>
 
-  <div class="layout">
+  <div class="railwrap"><div class="rail" id="procs"></div></div>
+
+  <div class="layout" style="margin-top:0">
     <div>
-      <div class="railwrap" id="timeline">
-        <svg id="edges" width="0" height="0" aria-hidden="true"></svg>
-        <div class="rail" id="rail"></div>
+      <div class="redzone">
+        <div class="rh">红边 · <b>门禁红了才插进来</b>：从退出码非 0 那一刻开始，跑完再回进程 7。这条链<b>不在</b>主线 8 个里。</div>
+        <div class="rrow" id="redrow"></div>
       </div>
-      <div class="sidetrack">
-        <div class="stl"><b>旁支轨道 · 不在单例链路上</b>（0..1×，点标记看详情；批量与二次开发各自独立，可跳过整条主链）</div>
+
+      <div class="sidestrip">
+        <div class="sh"><b>旁支 · 不在这 10 个进程里</b>（0..1×，各自独立；批量与二次开发可以完全绕过上面那条主链）</div>
         <div class="sidechips" id="sidechips"></div>
       </div>
-    </div>
-    <div class="mount" id="mount-timeline"><aside id="detail" aria-live="polite"></aside></div>
-  </div>
-</section>
 
-<!-- ========== 视图二：文件地图 ========== -->
-<section class="view" id="view-filemap">
-  <p class="wrong" style="background:#16202b;border-color:#2c4a63;color:#b7cde2">
-    <b style="color:var(--h)">读法：</b>左边是一张「磁盘」——28 个文件按 kind 分组；点一个文件，下面这条带会亮起它被哪几个时刻碰过，并标明是<b>读</b>、<b>写</b>还是<b>运行</b>。点带里的时刻会跳回时间轴并定位到那一步。反向也成立：在时间轴选中一步，这里对应的卡片会亮。</p>
-  <div class="layout">
-    <div>
-      <div id="stripHost"></div>
-      <div id="filemap"></div>
-    </div>
-    <div class="mount" id="mount-filemap"></div>
-  </div>
-</section>
+      <details class="rev">
+        <summary>文件反查表 · 19 行：我要改这个文件，会影响哪几步？</summary>
+        <table class="revtable" id="revtable"></table>
+      </details>
 
-<!-- ========== 视图三：失败回修链 ========== -->
-<section class="view" id="view-repair">
-  <div class="layout">
-    <div>
-      <div class="failhead">
-        <div class="chain"><span>T9</span><span class="ar">→</span><span>T10a</span><span class="ar">→</span><span>T10b</span><span class="ar">→</span><span>T11</span></div>
-        <button class="play" id="playBtn">▶ 走一遍（高亮整条链）</button>
-        <div class="note2">这条红链<b>不在</b>主线上：它从后置门禁红掉那一刻开始，跑完再回主链。<br>harness 不自己循环——重跑是宿主的决定，<code>--max-attempts</code> 只是硬上限。</div>
+      <div class="sfoot" style="border-top:1px solid var(--line);margin-top:12px">
+        证据等级：<span class="ev tr">trace</span> = <code>python3 -m trace --trace</code> / <code>bash -x</code> 实际跑出来的进入顺序 ·
+        <span class="ev as">ast</span> = 静态解析出的事实（无法或不值得真跑时用）·
+        <span class="ev ex">external</span> = 系统工具，不在 harness 里，没有 harness 侧的函数可追。<br>
+        这 10 个进程里 9 个是 <b>trace</b>、1 个是 <b>external</b>；上面三条旁支是 <b>ast</b>。
+        一次顺利跑通只碰 6 个脚本 —— <code>fix_case.py</code> / <code>batch.py</code> / <code>dev_lib.py</code> / <code>msh2d_to_foam.py</code> 在多数 case 里一次都不跑。
       </div>
-      <div class="failgrid" id="failgrid"></div>
     </div>
-    <div class="mount" id="mount-repair"></div>
+
+    <aside id="detail" aria-live="polite"></aside>
+  </div>
+</section>
+
+<!-- ================= ③ 函数调用栈 ================= -->
+<section class="view" id="view-stack">
+  <div class="stackhead">
+    <span style="font-size:12.6px;color:var(--mut)">进程</span>
+    <select id="stackProc" aria-label="选择进程"></select>
+    <select id="stackMode" aria-label="选择模式"></select>
+    <span class="ev tr" id="stackEv">trace</span>
+    <span class="hint" style="margin-left:auto">每一层是「函数名 · 行号 · 干什么」；重复调用压成一个节点</span>
+  </div>
+
+  <div class="statbar" id="stackStats"></div>
+  <div class="sbanner" id="stackBanner"></div>
+  <div class="stackwrap">
+    <div id="stack"></div>
+    <div class="sfoot" id="stackFoot"></div>
+  </div>
+</section>
+
+<!-- ================= ④ 取证 ================= -->
+<section class="view" id="view-forensic">
+  <div id="forensic">
+    <div class="sec">
+      <h2>十二条实测事实<span class="cnt" id="fCnt">12</span></h2>
+      <p class="hint" style="margin:0 0 9px">前 11 条是 2026-11-03 一次完整探针打出来的，第 12 条来自核对两份文档的顺序。</p>
+      <div class="fgrid" id="findingList"></div>
+    </div>
+
+    <div class="sec">
+      <h2>复核命令<span class="cnt" id="cCnt">12</span></h2>
+      <p class="hint" style="margin:0 0 9px">每条先写它验证什么，再给命令。全部在仓库根执行。</p>
+      <div id="checkList"></div>
+    </div>
+
+    <div class="sec">
+      <h2>面试问答<span class="cnt" id="qCnt">9</span></h2>
+      <div id="qaList"></div>
+    </div>
   </div>
 </section>
 
 <footer>
-  逐字命令与退出码来自 <code>scripts/*.{sh,py}</code> 的函数头契约注释与本机实跑。耗时数字一律标注「本机实测」，不构成性能结论。<br>
-  生成时间 <code id="ftGen"></code> · 宿主 <code id="ftHost"></code> · 数据文件 <code id="ftSrc"></code> · 本页单文件、离线、零外链。
+  逐字命令与退出码来自 <code>scripts/*.{sh,py}</code> 的头部契约与 <code>release/SKILL.md</code>；函数进入序列来自 <code>trace</code> / <code>bash -x</code> 实测。
+  路径占位符：<code>$HARNESS</code> = 这套 harness 的根目录（仓库根或解包位置），<code>$WORK</code> = 你的工作目录。<br>
+  本页单文件、离线、零外链：所有数据内嵌在 <code>const FLOW</code> 里，进程链与函数栈读的是同一份 <code>FLOW.procs</code>。<br>
+  事实源 <code id="ftSrc"></code> · 采集时点 <code id="ftGen"></code> · 环境 <code id="ftEnv"></code>
 </footer>
 </div>
 
@@ -329,1273 +423,763 @@ footer code{color:#8ea5bd}
 
 const FLOW = {
  "meta": {
-  "generated_at": "2026-11-03 18:40 CST",
-  "generated_by": "编排方实测（不是子代理自述）",
-  "host": "WSL2, OpenFOAM v13 (/opt/openfoam13), python3 3.14.9",
-  "src": ".hermes/plans/2026-11-03-flow-facts.json"
+  "src": "references/15-harness-flow.md",
+  "generated": "2026-11-03",
+  "env": "WSL2 · OpenFOAM v13（/opt/openfoam13）· python3",
+  "punch": "harness 没有 agent，agent 有 harness。",
+  "stats": [
+   {"n": "8", "l": "个主进程（独立进程，顺序由 agent 决定）", "cls": ""},
+   {"n": "2", "l": "个回修进程（只在门红时插入）", "cls": "a"},
+   {"n": "42", "l": "次函数进入（8 条主链合计，full 模式路径）", "cls": "b"},
+   {"n": "0", "l": "次跨进程函数调用（进程间只走磁盘）", "cls": "c"}
+  ]
  },
- "layers": [
+ "entry": {
+  "file": "release/SKILL.md",
+  "where": "第 1–4 行是 YAML frontmatter",
+  "yaml": [
+   "---",
+   "name: openfoam-v13-case-harness",
+   "description: Use when 要把一句自然语言 CFD 需求变成一个能在本机 OpenFOAM v13 上跑通的 case 目录（派生 tutorial、改字典、跑求解、过五道门禁）。本 harness 只提供十个确定性命令行工具与一份文档：不含模型、不控流程，模型与循环由调用方提供。仅支持 OpenFOAM v13。",
+   "---"
+  ],
+  "steps": [
+   {"t": "用户说一句话", "d": "「一个二维方腔，顶盖 1 m/s，水，层流，稳态」—— 整句原样交出去，不自己总结。"},
+   {"t": "agent 扫所有 skill 的 description", "d": "命中「要建 case」这个意图，也就是命中 <code>description</code> 里那句 <code>Use when …</code>。"},
+   {"t": "把 SKILL.md 全文读进上下文", "d": "563 行，含 6 步命令块、退出码表、四条停点规则。然后<b>照着走</b>。"},
+   {"t": "每一步：调一个脚本 → 读退出码", "d": "读到 <code>0</code> 继续，读到 <code>10</code> 停下问人，读到 <code>50</code> 执行它给的那条 <code>source</code>。"}
+  ],
+  "quote": "agent 会话开始时扫所有 skill 的 <code>description</code>，命中「要建 case」这个意图，就把 <code>SKILL.md</code> 全文读进上下文，然后照着走。所以准确的说法是：<b>harness 没有 agent，agent 有 harness。</b>",
+  "hint": "agent 认的是 <code>description</code>，不是文件名。这份文件不在 PATH 上、没有执行位、也不是 entry point —— 它是<b>给模型的接口文档</b>。"
+ },
+ "channels": [
+  {"dir": "agent → 脚本", "name": "argv + 环境变量", "form": "bash $HARNESS/scripts/new_case.sh --source … --dest … --spec …", "note": "单向。脚本从不回头问 agent 任何问题。"},
+  {"dir": "脚本 → agent", "name": "stdout / stderr / 退出码", "form": "DERIVED=/path、一行 JSON、FAIL version …、rc=0", "note": "单向。stdout 给人看，退出码才是契约。"},
+  {"dir": "脚本 ↔ 脚本", "name": "磁盘", "form": "case 树、case.meta、log.checkMesh、log.g1…g5、attempt_1/", "note": "唯一的双向通道，而且是异步的：写的人早退出了。"}
+ ],
+ "procs": [
   {
-   "id": "L1",
-   "name": "人",
-   "desc": "决定要什么、改字典、裁决物理取舍、判断结果可信不可信",
-   "steps": [
-    "T0",
-    "T5",
-    "T12"
-   ]
+   "id": "P1", "n": 1, "name": "preflight.sh", "kind": "main", "label": "环境自检",
+   "script": "scripts/preflight.sh", "line": "41",
+   "argv": ["bash \"$HARNESS/scripts/preflight.sh\""],
+   "actor": "agent（会话的第一条命令）",
+   "reads": ["`$WM_PROJECT_VERSION` —— 版本字面必须等于 13", "PATH 里的四个命令", "`$FOAM_TUTORIALS` 下 tutorial 数（≥ 100）", "`python3 --version`（≥ 3.9）", "同目录 9 个用户面脚本存在且可执行"],
+   "writes": ["无 —— 只往 stdout 打 `ok` / `fail` 行"],
+   "exit": "0 六项全过 / 50 环境不全 / 51 版本不是 13 / 64 用法错误",
+   "onRed": "50 → 执行它给的那条 `source` 再跑；51 → 先 `source` 再判一次（顺序就是为这个设计的），仍红才换环境",
+   "callChain": ["main", "resolve_bash_rc", "ok ×6"],
+   "fns": [
+    {"fn": "main", "line": null, "what": "顺序跑 6 项检查，每项由 ok / fail 打一行", "io": "read"},
+    {"fn": "resolve_bash_rc", "line": "41", "what": "推导 bashrc 路径 —— **不能复用别的脚本的实现**，它必须能在「同目录没有任何其他脚本」时单独跑通（它就是陌生用户的第一条命令）", "io": "none"},
+    {"fn": "ok", "line": "132", "what": "打一行 OK，共 6 次", "io": "none"},
+    {"fn": "fail", "line": "136", "what": "打一行 FAIL", "io": "none"}
+   ],
+   "table": {
+    "title": "6 项检查（顺序刻意固定）",
+    "sub": "下表省略文件名，全部指 `scripts/preflight.sh`",
+    "head": ["#", "检查", "ok 行", "fail 行"],
+    "rows": [
+     ["1", "bashrc 已 source", ":150", ":152"],
+     ["2", "四个命令在 PATH", ":161", ":163"],
+     ["3", "tutorial 数 ≥ 100", ":172", ":174 / :177"],
+     ["4", "版本字面等于 13", ":185", ":183 / :188"],
+     ["5", "python3 ≥ 3.9", ":195", ":199 / :201"],
+     ["6", "同目录 9 个脚本可执行", ":213", ":215"]
+    ]
+   },
+   "note": "顺序是刻意的：**#1 必须排在 #4 之前**。没 source 时 `$WM_PROJECT_VERSION` 为空，先判版本会把「环境没加载」误报成「版本不对」(51)，处置方向完全相反（一个只要一条 `source`，一个要换安装）。",
+   "evidence": "trace",
+   "stackNote": "`ok ×6` 是 6 次进入压成一个节点：6 项检查各一次。`resolve_bash_rc` 单独抽出来，是因为它必须能在「同目录没有任何其他脚本」时跑通。"
   },
   {
-   "id": "L2",
-   "name": "宿主 agent",
-   "desc": "读 release/SKILL.md，决定下一步调哪个脚本、何时停下问人。harness 不含模型、不循环、不决定顺序",
-   "steps": [
-    "T1",
-    "T2",
-    "T3",
-    "T4",
-    "T4b",
-    "T6",
-    "T7",
-    "T8",
-    "T9",
-    "T10a",
-    "T10b",
-    "T11"
-   ]
+   "id": "P2", "n": 2, "name": "parse_requirement.py", "kind": "main", "label": "需求 → 四元组",
+   "script": "scripts/parse_requirement.py", "line": "256",
+   "argv": ["python3 \"$HARNESS/scripts/parse_requirement.py\" --text \"一个二维方腔，顶盖 1 m/s，水，层流，稳态\" --out \"$WORK/x.spec.json\""],
+   "actor": "agent",
+   "reads": ["用户原话（`--text` 的整句，不预处理）"],
+   "writes": ["`<work>/x.spec.json` —— 仅当 `complete=true` 且给了 `--out`", "stdout 一行 JSON（中文不转义）"],
+   "exit": "0 complete=true / 10 四元组不全（交人，不是错误）/ 64 用法错误",
+   "onRed": "10 → 停下问人（SKILL §5 第 1 条）。**不许补默认值。**",
+   "callChain": ["_UsageParser", "main", "run", "extract_quad", "_first_match", "_extract_properties", "_first_match", "validate_quad", "_normalize_value", "exit_code_for", "to_json"],
+   "fns": [
+    {"fn": "_UsageParser", "line": null, "what": null, "io": "none"},
+    {"fn": "main", "line": "256", "what": "解析 argv，调 `run`，把 JSON 打到 stdout，`complete=true` 且给了 `--out` 才落盘", "io": "write"},
+    {"fn": "run", "line": "228", "what": "三行流水线：`validate_quad(extract_quad(text))` + `exit_code_for`", "io": "none"},
+    {"fn": "extract_quad", "line": "197", "what": "**纯函数、纯标准库**，正则 + 关键词表，四个字段各猜一次；猜不到给 `None`", "io": "none"},
+    {"fn": "_first_match", "line": "161", "what": "单字段的匹配器（`extract_quad` 与 `_extract_properties` 都调它，所以出现两次）", "io": "none"},
+    {"fn": "_extract_properties", "line": "179", "what": "`properties` 字段特殊：要同时认出流体名与湍流模型", "io": "none"},
+    {"fn": "validate_quad", "line": "79", "what": "**不关心猜的来源**：只查四个键、值必须非空 `str`、缺的记 `None`", "io": "none"},
+    {"fn": "_normalize_value", "line": "66", "what": "去空白、统一口径", "io": "none"},
+    {"fn": "exit_code_for", "line": "98", "what": "`complete` → 0，否则 10（**唯一**推退出码的地方，CLI 与测试共用）", "io": "none"},
+    {"fn": "to_json", "line": "234", "what": "一行 JSON，中文不转义", "io": "none"}
+   ],
+   "note": "**这 11 次进入里没有一次碰到文件系统**（除了最后 `main` 里的 `write_text`）。所以「需求 → 四元组」这一步可以在完全没有 OpenFOAM、没有网络的机器上单独测——事实上它就是这么被测的。接 LLM 时只替换 `extract_quad` 一个函数，`validate_quad` 与 `exit_code_for` 一行都不用改。",
+   "evidence": "trace",
+   "stackNote": "**10 个节点一次都没碰文件系统** —— 唯一一次写是 `main` 末尾的 `write_text`。这就是为什么这一步可以离线单测，也是「接 LLM 只换一个函数」的物理基础。"
   },
   {
-   "id": "L3",
-   "name": "脚本互相调用",
-   "desc": "只有 batch.py 会调别的脚本（new_case / fix_case / verify_case / run_case）；单例链路里脚本之间零调用，全部由 L2 逐个发起",
-   "steps": [
-    "B1"
-   ]
+   "id": "P3", "n": 3, "name": "find_template.sh", "kind": "main", "label": "grep 定派生源",
+   "script": "scripts/find_template.sh", "line": "97",
+   "argv": ["bash \"$HARNESS/scripts/find_template.sh\" --keyword cavity --limit 5"],
+   "actor": "agent",
+   "reads": ["五个搜索根：`$FOAM_TUTORIALS` `$FOAM_SRC` `$FOAM_APP` `$FOAM_ETC` `$FOAM_UTILITIES`。`$HOME/OpenFOAM` 下的副本被拒绝"],
+   "writes": ["无 —— 不建索引、不缓存、不猜"],
+   "exit": "0 有命中 / 11 FOUND=0 / 64 用法错误或前置不满足",
+   "onRed": "11 → 换一个词再试（每次只改一个词），三次都空就告诉用户库里没有，并列出试过的词",
+   "callChain": ["main", "resolve_bash_rc"],
+   "fns": [
+    {"fn": "main", "line": null, "what": "跑一遍循环，结果排序去重后截断到 `--limit`，末两行打 `FOUND=` 与 `SHOWN=`", "io": "read"},
+    {"fn": "resolve_bash_rc", "line": null, "what": "推导 bashrc 路径", "io": "none"}
+   ],
+   "anchors": [
+    {"line": "97", "what": "`for var in \"${ROOT_VARS[@]}\"` —— 每个搜索根跑一次"},
+    {"line": "119", "what": "`grep -rnI -m1 -F -- \"$KEYWORD\" \"$root\"`"},
+    {"line": "末两行", "what": "`FOUND=<总数>` 与 `SHOWN=<输出行数>`"}
+   ],
+   "note": "**没有函数封装**，因为它的全部逻辑就是一次 grep。它不建索引、不缓存、不猜。单次 6.7 s 是**全库 grep 的数据量代价**，不是工具性能。",
+   "evidence": "trace",
+   "stackNote": "只有 2 次函数进入 —— 全部逻辑就是一次 grep，没有函数封装的必要。行级锚点比函数栈更能说明它干了什么。"
+  },
+  {
+   "id": "P4", "n": 4, "name": "new_case.sh", "kind": "main", "label": "派生 case",
+   "script": "scripts/new_case.sh", "line": "112",
+   "argv": ["bash \"$HARNESS/scripts/new_case.sh\" --source <tutorial 相对路径> --dest \"$WORK/cavity-01\" --spec \"$WORK/x.spec.json\""],
+   "actor": "agent（`batch` 也会代调）",
+   "reads": ["`$FOAM_TUTORIALS/<source>`（`cp -a` 整树）", "`--spec` 给的 spec.json", "`python3` 是否在 PATH"],
+   "writes": ["`<dest>/` —— 源树的 `cp -a` 副本", "`<dest>/case.meta` —— 内嵌 python heredoc 写六键"],
+   "exit": "0 成功 / 12 派生源不合法（此时 dest 完全没被创建）/ 13 dest 已存在（不覆盖）/ 64 用法错误（含找不到 python3）",
+   "onRed": "12 → 回进程 3 另选派生源；13 → 换 `--dest`，或自己确认后删旧目录",
+   "callChain": ["main"],
+   "fns": [
+    {"fn": "main", "line": null, "what": "顺序执行校验与动作，**没有拆函数** —— 每条校验都是「不满足就 `die`」，拆开不降低复杂度", "io": "write"}
+   ],
+   "anchors": [
+    {"line": "112", "what": "`command -v $PYTHON` → 找不到退 64（写 case.meta 需要 python3）"},
+    {"line": "136", "what": "`realpath -e -- $src` → 失败退 12"},
+    {"line": "142", "what": "`realpath -e -- $FOAM_TUTORIALS`"},
+    {"line": "158", "what": "`dirname -- $DEST` + `mkdir -p`（父目录不存在时）"},
+    {"line": "162", "what": "`cp -a -- \"$src_real/.\" \"$DEST/\"`"},
+    {"line": "168–195", "what": "`python3 <<'PY'` 写 case.meta 六键（内嵌 heredoc，失败即回滚 dest 退 64）"},
+    {"line": "134–151", "what": "source 四条校验：exists / realpath / 在 `$FOAM_TUTORIALS` 下 / 有 `system/controlDict`；任一条不过退 12 且 `$DEST` 完全没被创建"},
+    {"line": "154/155", "what": "判 `$DEST` 已存在（含符号链接）退 13"}
+   ],
+   "note": "`:162` 用 `\"$src_real/.\"` 而不是 `\"$src_real\"`：前者把内容铺进 dest，后者会多一层同名子目录。",
+   "evidence": "trace",
+   "stackNote": "只有 `main` 一次进入 —— 真正的动作全是外部命令。这张表就是它的「函数栈」：6 个可执行 + 1 段 heredoc。"
+  },
+  {
+   "id": "P5", "n": 5, "name": "foamDictionary", "kind": "main", "label": "改字典（人决定值）",
+   "script": "（OpenFOAM 自带，不在 harness 里）", "line": "—",
+   "argv": ["foamDictionary constant/physicalProperties -entry nu -set \"1e-06 [m^2/s]\"", "foamDictionary constant/physicalProperties -entry nu -value     # 回读"],
+   "actor": "人（agent 只负责执行，改什么值由人决定）",
+   "reads": ["case 树里已有的 entry"],
+   "writes": ["就地改字典（`-set`）", "★ 对**不存在**的 entry 会新增，回读是唯一防线"],
+   "exit": "0（含新增不存在的 entry）；`-entry` 不认点路径时 `FOAM FATAL IO ERROR` 退 2（与 G2 同号，别混）",
+   "onRed": "回读不符 → 键名拼错或量纲丢了；先 `-value` 回读再判断，不要相信 `-set` 的 rc",
+   "callChain": ["main"],
+   "fns": [],
+   "note": "这是 OpenFOAM 自带的工具，agent 直接调。**harness 不提供「需求 → 哪个 entry 改成什么值」的翻译** —— 那需要物理判断。`fix_case.py locate` 只肯说「改哪个文件的哪个 entry」，`new_value` 恒为 `null`。",
+   "evidence": "external",
+   "stackNote": "外部可执行，没有 harness 侧的函数可追。这里画一个 `main` 只是为了保持形状一致 —— 真正写盘的是 foamDictionary 自己。"
+  },
+  {
+   "id": "P6", "n": 6, "name": "verify_case.sh --stage pre", "kind": "main", "label": "前置门禁 G1+G5",
+   "script": "scripts/verify_case.sh", "line": "143",
+   "argv": ["bash \"$HARNESS/scripts/verify_case.sh\" --stage pre --case \"$WORK/cavity-01\""],
+   "actor": "agent（`batch` 也会代调）",
+   "reads": ["case 树：`system/` 三字典、`0/` 非空、`constant/` 物理字典", "`0/` 的 patch 名 vs `constant/polyMesh/boundary`（没有网格时只写 `SKIP`）", "`case.meta` 的 `allowed_files`（G5）"],
+   "writes": ["`<case>/log.g1`", "`<case>/log.g5` —— **写进 `--case` 目录，pre 不是只读**"],
+   "exit": "0 全过 / 1 G1 / 5 G5 / 64 用法错误",
+   "onRed": "1 → 补 `system/` `0/` `constant/`、核对 patch 名；5 → 撤销 `allowed_files` 之外的改动",
+   "callChain": ["main", "write_log"],
+   "fns": [
+    {"fn": "main", "line": null, "what": "跑两个内嵌 python 块（G1 / G5），然后调 `write_log`", "io": "read"},
+    {"fn": "write_log", "line": "143", "what": "写 `log.g1`、`log.g5`", "io": "write"}
+   ],
+   "anchors": [
+    {"line": "581–690", "what": "内嵌 python 块：判 G1 的 patch 集合（trace 报在块的结束行 690）"},
+    {"line": "724–882", "what": "内嵌 python 块：求 G5 改动集（trace 报在结束行 882）"},
+    {"line": "655", "what": "无 `boundary` 时 patch 比对只写 `SKIP` —— 所以没网格时 G1 也 RC=0"},
+    {"line": "801–816", "what": "G5 按类排除自己写的 `log.g*`，否则第二次跑会把自己上次的日志判成越界"}
+   ],
+   "note": "**「门禁只读」是错的**：pre 会往 `--case` 目录里写这两个文件。零 OpenFOAM 命令 —— 设计意图就是「结构不对就不必白跑网格」。",
+   "evidence": "trace",
+   "stackNote": "2 次函数进入 + 2 个内嵌 python 块。真正干活的是那两个块，`write_log` 只负责落盘。"
+  },
+  {
+   "id": "P7", "n": 7, "name": "run_case.sh", "kind": "main", "label": "建网格 / 短跑 / 长跑",
+   "script": "scripts/run_case.sh", "line": "149",
+   "argv": ["bash \"$HARNESS/scripts/run_case.sh\" --case \"$WORK/cavity-01\" --mode check", "bash \"$HARNESS/scripts/run_case.sh\" --case \"$WORK/cavity-01\" --mode short --timeout 300", "bash \"$HARNESS/scripts/run_case.sh\" --case \"$WORK/cavity-01\" --mode full  --timeout 1800"],
+   "actor": "agent（`batch` 也会代调）",
+   "reads": ["`system/controlDict` 的三个顶层标量：`deltaT` / `endTime` / `writeInterval`", "`system/blockMeshDict`（仅当 `constant/polyMesh` 不存在）"],
+   "writes": ["`constant/polyMesh/`、`log.blockMesh` / `log.checkMesh` / `log.shortRun` / `log.run`", "★ **改写 `system/controlDict`**（short 模式，而且保留）"],
+   "exit": "0 正常 / 20 求解失败 / 21 超时 / 22 环境缺失 / 23 没有可用网格 / 64 用法错误",
+   "onRed": "20 → 读 `log.run` / `log.shortRun` 的 `FOAM FATAL` → 进进程 9；21 → 加 `--timeout` 或先压小 `endTime`；22 → `source` bashrc；23 → 换一个自带 `blockMeshDict` 的派生源",
+   "callChain": ["main", "run_capped · blockMesh", "handle", "run_capped · checkMesh", "handle", "read_entry · deltaT", "read_entry · endTime", "read_entry · writeInterval", "set_entry · endTime=$SHORT_END", "set_entry · writeInterval=2", "run_capped · foamRun（短跑 → log.shortRun）", "handle", "set_entry · 恢复 endTime", "set_entry · 恢复 writeInterval", "run_capped · foamRun（全时程 → log.run）", "handle"],
+   "chains": {
+    "check": {"label": "--mode check（只建网格 + checkMesh）", "chain": ["main", "run_capped · blockMesh", "handle", "run_capped · checkMesh", "handle"]},
+    "short": {"label": "--mode short（加短跑，并改写字典）", "chain": ["main", "run_capped · blockMesh", "handle", "run_capped · checkMesh", "handle", "read_entry · deltaT", "read_entry · endTime", "read_entry · writeInterval", "set_entry · endTime=$SHORT_END", "set_entry · writeInterval=2", "run_capped · foamRun（短跑 → log.shortRun）", "handle"]}
+   },
+   "fns": [
+    {"fn": "main", "line": null, "what": "按 `--mode` 分三支走（见下）", "io": "none"},
+    {"fn": "run_capped", "line": "149", "what": "跑一条 OpenFOAM 命令，`timeout` 包住，返回 0/20/21", "io": "write"},
+    {"fn": "handle", "line": "161", "what": "把 0/20/21 翻译成退出码 + 人话", "io": "none"},
+    {"fn": "read_entry", "line": "171", "what": "回读 `controlDict` 顶层标量的裸值（剥空白）", "io": "read"},
+    {"fn": "set_entry", "line": "177", "what": "设置 + **立刻回读校验**（不符按失败处理）", "io": "write"},
+    {"fn": "is_number", "line": "187", "what": "校验 `endTime` 是数字，否则退 20", "io": "none"}
+   ],
+   "anchors": [
+    {"line": "231", "what": "`if [ \"$MODE\" = \"full\" ]` —— 原值恢复**只**在这个分支里"},
+    {"line": "233/234", "what": "`set_entry` 把 `endTime` / `writeInterval` 恢复成原值"}
+   ],
+   "note": "**★ 实测结论**：`--mode short` 把 `endTime` 改成 `deltaT*2`、`writeInterval` 改成 2，**并且保留** —— 恢复只在 `full` 分支里。派生源原值 `endTime 10` / `writeInterval 100`，跑过 short 之后磁盘上是 `endTime 0.01` / `writeInterval 2`。所以「短跑之后直接读字典做断言」必然 mismatch。",
+   "evidence": "trace",
+   "stackNote": "**★ `--mode short` 把 `endTime` 改成 `deltaT*2`、`writeInterval` 改成 2，并且保留** —— 恢复只在 `full` 分支里。这就是那条「读字典做断言会 mismatch」的坑在函数级的来源：`set_entry` 出现两次方向相反，中间夹着一次真跑。"
+  },
+  {
+   "id": "P8", "n": 8, "name": "verify_case.sh --stage post", "kind": "main", "label": "后置门禁 G2+G3+G4",
+   "script": "scripts/verify_case.sh", "line": "143",
+   "argv": ["bash \"$HARNESS/scripts/verify_case.sh\" --stage post --case \"$WORK/cavity-01\""],
+   "actor": "agent（`batch` 也会代调）",
+   "reads": ["`log.checkMesh`（G2：只认 `Mesh OK.`，不看退出码）", "`log.shortRun`（G3）", "末时刻目录与各场（G4）", "`constant/polyMesh/owner` 取 nCells、`system/blockMeshDict`（诊断行）"],
+   "writes": ["`<case>/log.g3`", "`<case>/log.g4`", "`<case>/log.g2`（第 2 行带 `G2B=`）"],
+   "exit": "0 全过 / 2 G2 / 3 G3 / 4 G4",
+   "onRed": "2 → 看 `log.checkMesh` 的 `Failed N` 与 `***` 行；3 → 读 `log.shortRun` 的 `FOAM FATAL` → 进进程 9；4 → 压 `deltaT` 再跑",
+   "callChain": ["main", "write_log"],
+   "fns": [
+    {"fn": "main", "line": null, "what": "跑三个内嵌 python 块（G3 / G4 / G2），然后调 `write_log`", "io": "read"},
+    {"fn": "write_log", "line": "143", "what": "写 `log.g3` / `log.g4` / `log.g2`", "io": "write"}
+   ],
+   "anchors": [
+    {"line": "250", "what": "内嵌 python 块结束行：判 G3 短跑日志"},
+    {"line": "328", "what": "内嵌 python 块结束行：判 G4 产物"},
+    {"line": "499", "what": "内嵌 python 块结束行：判 G2 的 patch 名一致性"},
+    {"line": "214 / 276 / 193", "what": "`write_log` 依次写 `log.g3` / `log.g4` / `log.g2`（g2 第 2 行是 `G2B=`）"}
+   ],
+   "note": "**只解析日志，不跑求解。** 必然结果：在只跑过 `--mode check` 的 case 上跑 post，G3 拿到「MISSING log.shortRun ⇒ 未判定，不是通过」，**退出码 3**。这是设计，不是 bug。",
+   "evidence": "trace",
+   "stackNote": "2 次函数进入 + 3 个内嵌 python 块。它一行 OpenFOAM 命令都不跑 —— 红不红完全取决于上一步往磁盘写了什么。"
+  },
+  {
+   "id": "P9", "n": 9, "name": "fix_case.py（locate）", "kind": "side", "label": "回修 · 定位",
+   "script": "scripts/fix_case.py", "line": "276",
+   "argv": ["python3 \"$HARNESS/scripts/fix_case.py\" --case \"$WORK/cavity-01\" --error-log \"$WORK/cavity-01/log.shortRun\" --attempt 1"],
+   "actor": "agent（`batch` 也会代调）",
+   "reads": ["失败日志（`--error-log`）", "指纹台账 `fingerprints.txt`（跨 attempt 去重，重复 → 32）"],
+   "writes": ["`<case 父目录>/fingerprints.txt` —— 命中规则时追加一行（**落在 case 的父目录**）", "**不写任何字典**（`written` 恒 false）"],
+   "exit": "0 正常（含 declined，看 JSON 的 `declined` 字段）/ 31 到 max-attempts 上限 / 32 指纹重复 / 64 用法错误",
+   "onRed": "31 / 32 → 停下问人；`declined=true`（定位不到 file+entry）→ **也不许猜，交人**",
+   "callChain": ["_UsageParser", "main", "_build_parser", "_allowed_globs", "_run_locate", "fatal_first_line", "locate","_rel_to_case","_is_allowed", "fingerprint_of", "error_signature","seen_fingerprints","_ledger_path","record_fingerprint","_ledger_path", "_payload", "_emit"],
+   "fns": [
+    {"fn": "_UsageParser", "line": null, "what": null, "io": "none"},
+    {"fn": "main", "line": null, "what": null, "io": "none"},
+    {"fn": "_build_parser", "line": null, "what": null, "io": "none"},
+    {"fn": "_allowed_globs", "line": null, "what": null, "io": "read"},
+    {"fn": "_run_locate", "line": null, "what": null, "io": "read"},
+    {"fn": "fatal_first_line", "line": null, "what": null, "io": "none"},
+    {"fn": "locate", "line": "276", "what": "只有 **4 条规则**（3 正则 + 1 兜底），匹配不到就 `declined`", "io": "none"},
+    {"fn": "fingerprint_of", "line": null, "what": null, "io": "none"},
+    {"fn": "error_signature", "line": null, "what": null, "io": "none"},
+    {"fn": "_payload", "line": null, "what": null, "io": "none"},
+    {"fn": "_emit", "line": null, "what": null, "io": "none"}
+   ],
+   "note": "实测：日志含 `Unknown patchField type` → `declined=true`，**不写盘**；日志含 `keyword nu is undefined` → 命中规则 1，写出 `{file, entry, new_value: null}` 并追加一行台账。",
+   "evidence": "trace",
+   "stackNote": "**★ 待核（MD 内部不一致）**：这条 trace 序列里没有 `record_fingerprint`，但 F6 说「命中规则时写 `fingerprints.txt`」。两者至少要有一个错 —— 本页照 trace 原样画，把冲突摆在这里，不替它圆场。"
+  },
+  {
+   "id": "P10", "n": 10, "name": "fix_case.py（apply）", "kind": "side", "label": "回修 · 应用",
+   "script": "scripts/fix_case.py", "line": "437",
+   "argv": ["python3 \"$HARNESS/scripts/fix_case.py\" --case \"$WORK/cavity-01\" --apply '[{\"file\":\"system/fvSolution\",\"entry\":\"PIMPLE\",\"new_value\":\"...\"}]' --attempt 1"],
+   "actor": "人决定值 / agent 执行",
+   "reads": ["待改的字典", "指纹台账（去重）", "`case.meta` 的 `allowed_files`（`_is_allowed`）"],
+   "writes": ["`<case 父目录>/attempt_<n>/` —— **整个 case 树的副本**（实测 170+ 文件）", "就地改字典，然后回读比对", "`<case 父目录>/fingerprints.txt`"],
+   "exit": "0 成功（`written=true`）/ 33 写前校验或回读不符（字典没变）/ 31 / 32 / 64",
+   "onRed": "33 → 数 entry 在文件里是否恰好出现 1 次（0 次或多次都被拒，且**不备份、不写**）；改完回进程 7 重跑",
+   "callChain": ["main", "_build_parser", "_allowed_globs", "_run_apply", "parse_apply_payload", "fingerprint_for_apply", "_is_allowed", "_safe_rel_path", "seen_fingerprints", "_ledger_path", "validate_changes", "_count_entry", "_foam_dictionary", "_backup_case", "_set_entry", "_read_entry", "_values_equal", "_norm_scalar", "record_fingerprint", "_ledger_path", "_payload", "_emit"],
+   "fns": [
+    {"fn": "main", "line": null, "what": null, "io": "none"},
+    {"fn": "_build_parser", "line": null, "what": null, "io": "none"},
+    {"fn": "_allowed_globs", "line": null, "what": null, "io": "read"},
+    {"fn": "_run_apply", "line": null, "what": null, "io": "read"},
+    {"fn": "parse_apply_payload", "line": null, "what": null, "io": "none"},
+    {"fn": "fingerprint_for_apply", "line": null, "what": null, "io": "none"},
+    {"fn": "_is_allowed", "line": null, "what": null, "io": "none"},
+    {"fn": "_safe_rel_path", "line": null, "what": null, "io": "none"},
+    {"fn": "seen_fingerprints", "line": null, "what": null, "io": "read"},
+    {"fn": "_ledger_path", "line": null, "what": null, "io": "none"},
+    {"fn": "validate_changes", "line": "437", "what": "写前校验：entry 必须**恰好命中 1 次**（0 次 → 退 33，不备份、不写）", "io": "read"},
+    {"fn": "_count_entry", "line": null, "what": null, "io": "read"},
+    {"fn": "_foam_dictionary", "line": null, "what": null, "io": "write"},
+    {"fn": "_backup_case", "line": "457", "what": "备份 —— **★ 备份的是整个 case 树**，实测 `attempt_1/` 有 170+ 文件", "io": "write"},
+    {"fn": "_set_entry", "line": "476", "what": "写", "io": "write"},
+    {"fn": "_read_entry", "line": "485", "what": "回读", "io": "read"},
+    {"fn": "_values_equal", "line": null, "what": "会剥掉后置量纲（`1e-5 [m^2/s]` vs `1e-05 [ m^2 / s]`）", "io": "none"},
+    {"fn": "_norm_scalar", "line": null, "what": null, "io": "none"},
+    {"fn": "record_fingerprint", "line": "344", "what": "指纹台账 —— **★ 写在 `run_dir = case_dir.parent`（`scripts/fix_case.py:459` 与 `:579`）**，即 case 的父目录；单例用法下所有 case 共用一份", "io": "write"},
+    {"fn": "_payload", "line": null, "what": null, "io": "none"},
+    {"fn": "_emit", "line": null, "what": null, "io": "none"}
+   ],
+   "note": "只自动应用标量 set；结构修复（加 dict 块 / 缺整个文件）一律 `declined`。用 `_values_equal` 回读时剥后置量纲，否则 `1e-5 [m^2/s]` 与 `1e-05 [ m^2 / s]` 会被判成不等。",
+   "evidence": "trace",
+   "stackNote": "**★ 备份是整个 case 树**（实测 `attempt_1/` 170+ 文件），成本随时间目录数增长；`record_fingerprint` 写在 **case 的父目录** —— 单例用法下所有 case 共用一份台账。"
   }
  ],
- "steps": [
-  {
-   "id": "T0",
-   "label": "装一次",
-   "actor": "人",
-   "branch": "main",
-   "freq": "1×（每台机器）",
-   "script": "scripts/deploy.py --action install|update|status（仓库侧，不进发布包）",
-   "cmd": "python3 scripts/deploy.py --action install --dest ~/foam-mate",
-   "reads": [
-    "远端仓库（只有 --fetch/update 才访问网络）"
-   ],
-   "writes": [
-    "~/foam-mate/（15 个文件：3 md + 10 脚本 + VERSION + LICENSE）"
-   ],
-   "exit": "0 / 90（无 git 环境）",
-   "on_red": "见 release/QUICKSTART.md 部署节",
-   "note": "install/update 结束会跑该副本自己的 preflight，两次都必须 6/6"
-  },
-  {
-   "id": "T1",
-   "label": "环境自检",
-   "actor": "宿主",
-   "branch": "main",
-   "freq": "1×/会话",
-   "script": "scripts/preflight.sh",
-   "cmd": "bash \"$HARNESS/scripts/preflight.sh\"",
-   "reads": [
-    "$WM_PROJECT_DIR",
-    "$FOAM_TUTORIALS（数 system/controlDict 个数）",
-    "PATH（foamRun foamDictionary blockMesh checkMesh）",
-    "python3 --version",
-    "同目录 9 个脚本存在且可执行"
-   ],
-   "writes": [
-    "无（只写 stdout/stderr）"
-   ],
-   "exit": "0 全过 / 50 环境不全 / 51 版本不是 13 / 64 用法错误",
-   "on_red": "50 → 执行它给的那条 source 再跑；51 → 换环境，本包只对 v13 负责",
-   "note": "检查顺序固定：先判 bashrc（#1）再判版本（#4）。反过来会把「忘了 source」误报成「版本不对」(51)"
-  },
-  {
-   "id": "T2",
-   "label": "需求 → 四元组",
-   "actor": "宿主",
-   "branch": "main",
-   "freq": "1×",
-   "script": "scripts/parse_requirement.py",
-   "cmd": "python3 \"$HARNESS/scripts/parse_requirement.py\" --text \"<用户原话>\" --out \"$WORK/x.spec.json\"",
-   "reads": [
-    "用户原话（整句丢进去，不要自己总结）"
-   ],
-   "writes": [
-    "<work>/<名>.spec.json（仅当给出 --out）；stdout 一行 JSON"
-   ],
-   "exit": "0 complete=true / 10 缺需求（交人，不是错误）/ 64 用法错误",
-   "on_red": "10 → 停下问人（SKILL §5 第 1 条）。不许补默认值",
-   "note": "只负责猜，猜不到记 null。geometry 只要有文字就算给了 → 「二维方腔」不带边长也 complete=true"
-  },
-  {
-   "id": "T3",
-   "label": "grep 定派生源",
-   "actor": "宿主",
-   "branch": "main",
-   "freq": "≥1×",
-   "script": "scripts/find_template.sh",
-   "cmd": "bash \"$HARNESS/scripts/find_template.sh\" --keyword cavity --limit 5",
-   "reads": [
-    "五个搜索根：$FOAM_TUTORIALS $FOAM_SRC $FOAM_APP $FOAM_ETC $FOAM_UTILITIES。$HOME/OpenFOAM 下的副本被拒绝"
-   ],
-   "writes": [
-    "无"
-   ],
-   "exit": "0 有命中 / 11 FOUND=0 / 64 用法错误或前置不满足",
-   "on_red": "11 → 换一个词再试（每次只改一个词），三次空就告诉用户库里没有",
-   "note": "输出末两行 FOUND=命中总数、SHOWN=输出行数。找目录名这条它答不了（那是 grep 文件内容），要用 ls -d"
-  },
-  {
-   "id": "T4",
-   "label": "派生 case",
-   "actor": "宿主",
-   "branch": "main",
-   "freq": "1×/case",
-   "script": "scripts/new_case.sh",
-   "cmd": "bash \"$HARNESS/scripts/new_case.sh\" --source incompressibleFluid/cavity --dest \"$WORK/cavity-01\" --spec \"$WORK/cavity.spec.json\"",
-   "reads": [
-    "$FOAM_TUTORIALS/<source>（cp -a 整树）",
-    "spec.json"
-   ],
-   "writes": [
-    "<dest>/（case 树 = 源 13 文件的 cp -a 副本 + case.meta，共 14 文件 / 18 条目，实测）",
-    "<dest>/case.meta（六键）"
-   ],
-   "exit": "0 成功 / 12 source 不合法（此时 dest 完全没被创建）/ 13 dest 已存在（不覆盖）/ 64 用法错误",
-   "on_red": "12 → 回 T3 另选；13 → 换 --dest 或自己确认后删旧目录",
-   "note": "用 cp -a，不用 foamCloneCase（后者只挑 shell 脚本、删 phi/Uf/uniform、目标已存在直接 error）"
-  },
-  {
-   "id": "T4b",
-   "label": "换网格（条件）",
-   "actor": "宿主",
-   "branch": "branch",
-   "freq": "0..1×（只有需求要非六面体网格时）",
-   "script": "scripts/msh2d_to_foam.py",
-   "cmd": "python3 \"$HARNESS/scripts/msh2d_to_foam.py\" --msh system/triangle2d.msh --out constant/polyMesh --thickness 0.01",
-   "reads": [
-    ".msh（msh2 ascii）"
-   ],
-   "writes": [
-    "constant/polyMesh/{points,faces,owner,neighbour,boundary}"
-   ],
-   "exit": "0 成功 / 14 输入或自检不合格（一个文件都不写）/ 15 输出目录非空且未给 --force / 64 用法错误",
-   "on_red": "15 → 先 rm -rf constant/polyMesh（换网格必须先删旧网格）",
-   "note": "它不生成网格：拓扑全部来自 gmsh。blockMesh 出不了三角形/四面体"
-  },
-  {
-   "id": "T5",
-   "label": "改字典",
-   "actor": "人",
-   "branch": "main",
-   "freq": "≥1×",
-   "script": "（不经 harness）foamDictionary + 手写 case.meta.changes",
-   "cmd": "foamDictionary constant/physicalProperties -entry nu -set \"1e-06 [m^2/s]\" ; foamDictionary constant/physicalProperties -entry nu -value",
-   "reads": [
-    "case 树里的字典"
-   ],
-   "writes": [
-    "就地改字典",
-    "case.meta 的 changes 数组（纯手写，无命令行入口）"
-   ],
-   "exit": "set 退 0；回读不符自行判断",
-   "on_red": "回读不符 → 键名拼错或量纲丢了；-set 对不存在的 entry 会新增并退 0",
-   "note": "harness 不替你翻译需求→字典。这一步只有人能决定改什么"
-  },
-  {
-   "id": "T6",
-   "label": "建网格",
-   "actor": "宿主",
-   "branch": "main",
-   "freq": "1×",
-   "script": "scripts/run_case.sh --mode check",
-   "cmd": "bash \"$HARNESS/scripts/run_case.sh\" --case \"$WORK/cavity-01\" --mode check",
-   "reads": [
-    "system/blockMeshDict（仅当 constant/polyMesh 不存在）"
-   ],
-   "writes": [
-    "constant/polyMesh/（5 个文件）",
-    "log.blockMesh",
-    "log.checkMesh"
-   ],
-   "exit": "0 正常 / 22 环境缺失（PATH 里没有 foamRun）/ 23 没有可用网格 / 64 用法错误",
-   "on_red": "22 → source bashrc；23 → 换一个自带 blockMeshDict 的派生源",
-   "note": "只在 constant/polyMesh 不存在时才 blockMesh。改了 blockMeshDict 必须 rm -rf constant/polyMesh 才会重建"
-  },
-  {
-   "id": "T7",
-   "label": "前置门禁 G1+G5",
-   "actor": "宿主",
-   "branch": "main",
-   "freq": "1×",
-   "script": "scripts/verify_case.sh --stage pre",
-   "cmd": "bash \"$HARNESS/scripts/verify_case.sh\" --stage pre --case \"$WORK/cavity-01\"",
-   "reads": [
-    "case 树（system/ 三字典、0/ 非空、constant/ 物理字典、0/ 的 patch 名 vs polyMesh/boundary）",
-    "case.meta.allowed_files",
-    "base/ 或 mtime（G5 求改动集）"
-   ],
-   "writes": [
-    "log.g1",
-    "log.g5（写进 --case 目录 —— pre 不是只读）"
-   ],
-   "exit": "0 全过 / 1 G1 / 5 G5 / 64 用法错误",
-   "on_red": "1 → 补 system/ 0/ constant/、核对 patch 名；5 → 撤销 allowed_files 之外的改动",
-   "note": "零 OpenFOAM 命令。实测无网格时 G1 仍 RC=0（G1 只查文件与 patch 名，不查网格对不对）"
-  },
-  {
-   "id": "T8",
-   "label": "短跑 / 长跑",
-   "actor": "宿主",
-   "branch": "main",
-   "freq": "1×（full 内部自带一次短跑）",
-   "script": "scripts/run_case.sh --mode short|full",
-   "cmd": "bash \"$HARNESS/scripts/run_case.sh\" --case \"$WORK/cavity-01\" --mode full --timeout 1800",
-   "reads": [
-    "system/controlDict（endTime / writeInterval / deltaT）"
-   ],
-   "writes": [
-    "log.shortRun（short 与 full 都写）",
-    "log.run（仅 full）",
-    "时间目录（short 写 0.01/，full 写 0.5…10 共 21 个）"
-   ],
-   "exit": "0 正常 / 20 求解失败 / 21 超时 / 22 环境缺失 / 23 没有可用网格",
-   "on_red": "20 → 读 log.run / log.shortRun 的 FOAM FATAL 段，进 T10；21 → 加 --timeout 或先压小 endTime",
-   "note": "★★ short 会改写 controlDict（endTime→deltaT*2、writeInterval→2）并且【保留】；full 跑完才恢复原值。实测：short 之后 endTime=0.01、writeInterval=2 留在磁盘上"
-  },
-  {
-   "id": "T9",
-   "label": "后置门禁 G2+G3+G4",
-   "actor": "宿主",
-   "branch": "main",
-   "freq": "1×",
-   "script": "scripts/verify_case.sh --stage post",
-   "cmd": "bash \"$HARNESS/scripts/verify_case.sh\" --stage post --case \"$WORK/cavity-01\"",
-   "reads": [
-    "log.checkMesh",
-    "log.shortRun",
-    "log.run",
-    "0/",
-    "constant/polyMesh/owner（取 nCells）",
-    "system/blockMeshDict（convertToMeters、hex）"
-   ],
-   "writes": [
-    "log.g2（第 2 行是 G2B）",
-    "log.g3",
-    "log.g4"
-   ],
-   "exit": "0 全过 / 2 G2 / 3 G3 / 4 G4",
-   "on_red": "2 → 看 log.checkMesh 的 Failed N 与 *** 行；3 → 读 log.shortRun 的 FOAM FATAL；4 → 压 deltaT / 查发散",
-   "note": "★ 只解析日志、不跑求解。★ 在 --mode check 之后跑必然红（G3 报 MISSING log.shortRun ⇒ 未判定，不是通过），这是设计不是 bug。附诊断行 OBJ= / GEO= / RE= / RES=，都不进退出码"
-  },
-  {
-   "id": "T10a",
-   "label": "回修·定位",
-   "actor": "宿主",
-   "branch": "branch",
-   "freq": "0..n×（只在门红时）",
-   "script": "scripts/fix_case.py（locate 模式）",
-   "cmd": "python3 \"$HARNESS/scripts/fix_case.py\" --case \"$WORK/cavity-01\" --error-log \"$WORK/cavity-01/log.shortRun\" --attempt 1",
-   "reads": [
-    "失败日志（log.*）"
-   ],
-   "writes": [
-    "<case 的父目录>/fingerprints.txt（指纹台账，跨 attempt 去重）",
-    "不写任何字典（written 恒 false）"
-   ],
-   "exit": "0 正常（含 declined，看 JSON 的 declined 字段）/ 31 达 max-attempts / 32 指纹重复 / 64 用法错误",
-   "on_red": "31/32 → 停下问人；declined=true（无法定位到 file+entry）→ 也不许猜，交人",
-   "note": "★ 只有 4 条定位规则（3 正则 + 1 兜底）。实测「Unknown patchField type」declined，且 declined 时不写台账；「keyword nu is undefined」命中规则 1，写出 {file,entry,new_value:null} 并追加一行台账"
-  },
-  {
-   "id": "T10b",
-   "label": "回修·应用",
-   "actor": "宿主/人决定值",
-   "branch": "branch",
-   "freq": "0..n×",
-   "script": "scripts/fix_case.py（apply 模式）",
-   "cmd": "python3 \"$HARNESS/scripts/fix_case.py\" --case \"$WORK/cavity-01\" --apply '[{\"file\":\"constant/physicalProperties\",\"entry\":\"nu\",\"new_value\":\"1e-05 [m^2/s]\"}]' --attempt 1",
-   "reads": [
-    "待改的字典"
-   ],
-   "writes": [
-    "<case 父目录>/attempt_<n>/（★ 整个 case 树的完整副本 + fingerprint.txt，实测 170+ 文件）",
-    "就地改字典，然后回读比对"
-   ],
-   "exit": "0 成功（written=true）/ 33 写前校验或回读不符（字典没变）/ 31 / 32 / 64",
-   "on_red": "33 → 数 entry 在文件里是否恰好出现 1 次（0 次或多次都被拒）。实测对不存在的 entry 就是 33，且不备份、不写",
-   "note": "只自动应用标量 set；结构修复（加 dict 块 / 缺整个文件）一律 declined。回读要剥后置量纲（1e-5 [m^2/s] vs 1e-05 [ m^2 / s]）"
-  },
-  {
-   "id": "T11",
-   "label": "重跑",
-   "actor": "宿主",
-   "branch": "branch",
-   "freq": "0..n×",
-   "script": "回 T6 / T8（可再次 T9）",
-   "cmd": "重复 T6 → T8 → T9",
-   "reads": [
-    "同 T6/T8"
-   ],
-   "writes": [
-    "覆盖同名 log",
-    "新的时间目录"
-   ],
-   "exit": "同上",
-   "on_red": "指纹重复（32）说明上一轮的改动没起作用 → 停下问人",
-   "note": "harness 不自己循环：循环由宿主决定，`--max-attempts` 只是硬上限"
-  },
-  {
-   "id": "T12",
-   "label": "结论",
-   "actor": "人",
-   "branch": "main",
-   "freq": "1×",
-   "script": "（无新命令）",
-   "cmd": "读五门 RC + 诊断行",
-   "reads": [
-    "log.g1…log.g5",
-    "OBJ= / GEO= / RE= / RES="
-   ],
-   "writes": [
-    "结论（退出码是唯一证据，不是任何一方的自述）"
-   ],
-   "exit": "—",
-   "on_red": "—",
-   "note": "「能跑」≠「结果对」。OBJ=mismatch / RES=coarse|marginal 时门照样可能全绿"
-  },
-  {
-   "id": "B1",
-   "label": "旁支·批量",
-   "actor": "宿主",
-   "branch": "side",
-   "freq": "0..1×/批（批内每例 1×）",
-   "script": "scripts/batch.py（★ 唯一会调别的脚本的脚本）",
-   "cmd": "python3 \"$HARNESS/scripts/batch.py\" --cases cases.json --dest runs/m2",
-   "reads": [
-    "cases.json（base + vary 的笛卡尔积，展开上限 50）"
-   ],
-   "writes": [
-    "runs/<批次>/<case_id>/case/",
-    ".../case.meta（从 case 树移过来）",
-    ".../base/（改参数前的基线，= attempt_1 改名）",
-    ".../spec.json",
-    ".../log.g1…log.g5",
-    ".../log.blockMesh|checkMesh|shortRun|run",
-    ".../metrics.json",
-    ".../batch.log",
-    "runs/<批次>/results.csv（15 列）"
-   ],
-   "exit": "0 全 pass / 70 跑完但有条目失败 / 71 批次中止（环境缺失 22 或展开超上限）/ 64 用法错误",
-   "on_red": "逐行看 results.csv 的 status 与 note",
-   "note": "调 new_case.sh → fix_case.py(apply) → verify_case.sh(pre) → run_case.sh → verify_case.sh(post)。失败策略四层（派生失败 no_artifact / 参数应用失败 malformed / pre 红跳过求解 / 环境缺失中止整批）"
-  },
-  {
-   "id": "B2",
-   "label": "旁支·二次开发",
-   "actor": "宿主+人",
-   "branch": "side",
-   "freq": "0..1×",
-   "script": "scripts/dev_lib.py（prepare / check / build / verify）",
-   "cmd": "python3 \"$HARNESS/scripts/dev_lib.py\" --stage prepare --name <库名> …（四个 stage 各一次）",
-   "reads": [
-    "$WM_PROJECT_DIR 下的子库（cp -a 派生）",
-    "dev.meta 的 manifest + meta_self_sha256"
-   ],
-   "writes": [
-    "$WM_PROJECT_USER_DIR/src/<名>/（副本 + dev.meta + log.wmake）",
-    "$FOAM_USER_LIBBIN/lib<名>.so"
-   ],
-   "exit": "0 全过 / 85 规格不合法 / 86 改动越界 / 87 构建失败或产物缺失 / 88 加载证明失败 / 89 系统树被改动",
-   "on_red": "86 → 改动落在 allowed_files 外；89 → 你动了 /opt/openfoam13",
-   "note": "脚本不改 C++、不生成 C++；中间的改 .C 是人的活。verify 只判 dlopen error 计数，不判退出码（坏库名实测也退 0）"
-  }
+ "branches": [
+  {"name": "scripts/batch.py", "ev": "ast", "chain": "main(:709) → parse_cases(:237) → expand(:313) → print_expansion / [Runner] → write_results(:640) → _self_check_csv(:667)", "note": "唯一「脚本调脚本」的文件：用 `subprocess.run` 起 new_case.sh / fix_case.py / verify_case.sh / run_case.sh"},
+  {"name": "scripts/dev_lib.py", "ev": "ast", "chain": "main(:707) → handlers[args.stage] = stage_prepare(:238) / stage_check(:386) / stage_build(:486) / stage_verify(:617)", "note": "脚本不改 C++、不生成 C++；中间改 .C 是人的活"},
+  {"name": "scripts/msh2d_to_foam.py", "ev": "ast", "chain": "main(:362) → read_msh(:97) → convert(:215) → render(:171) → write_polymesh(:343)", "note": "它不生成网格：拓扑全部来自 gmsh"}
  ],
  "files": [
-  {
-   "path": "scripts/preflight.sh",
-   "kind": "脚本",
-   "in_package": true,
-   "steps": [
-    "T1"
-   ],
-   "mode": "运行",
-   "reads": "环境变量/PATH/同目录 9 脚本",
-   "writes": "无",
-   "freq": "1×/会话"
-  },
-  {
-   "path": "scripts/parse_requirement.py",
-   "kind": "脚本",
-   "in_package": true,
-   "steps": [
-    "T2"
-   ],
-   "mode": "运行",
-   "reads": "用户原话",
-   "writes": "<work>/*.spec.json",
-   "freq": "1×"
-  },
-  {
-   "path": "scripts/find_template.sh",
-   "kind": "脚本",
-   "in_package": true,
-   "steps": [
-    "T3"
-   ],
-   "mode": "运行",
-   "reads": "五个 FOAM_* 根",
-   "writes": "无",
-   "freq": "≥1×"
-  },
-  {
-   "path": "scripts/new_case.sh",
-   "kind": "脚本",
-   "in_package": true,
-   "steps": [
-    "T4",
-    "B1"
-   ],
-   "mode": "运行",
-   "reads": "tutorial + spec.json",
-   "writes": "case 树 + case.meta",
-   "freq": "1×/case"
-  },
-  {
-   "path": "scripts/msh2d_to_foam.py",
-   "kind": "脚本",
-   "in_package": true,
-   "steps": [
-    "T4b"
-   ],
-   "mode": "运行",
-   "reads": ".msh",
-   "writes": "constant/polyMesh/*",
-   "freq": "0..1×"
-  },
-  {
-   "path": "scripts/run_case.sh",
-   "kind": "脚本",
-   "in_package": true,
-   "steps": [
-    "T6",
-    "T8",
-    "T11",
-    "B1"
-   ],
-   "mode": "运行",
-   "reads": "blockMeshDict / controlDict",
-   "writes": "polyMesh、log.blockMesh/checkMesh/shortRun/run、改写 controlDict",
-   "freq": "≥1×"
-  },
-  {
-   "path": "scripts/verify_case.sh",
-   "kind": "脚本",
-   "in_package": true,
-   "steps": [
-    "T7",
-    "T9",
-    "B1"
-   ],
-   "mode": "运行",
-   "reads": "case 树 + log.* + case.meta",
-   "writes": "log.g1…log.g5",
-   "freq": "≥2×"
-  },
-  {
-   "path": "scripts/fix_case.py",
-   "kind": "脚本",
-   "in_package": true,
-   "steps": [
-    "T10a",
-    "T10b",
-    "B1"
-   ],
-   "mode": "运行",
-   "reads": "log.*",
-   "writes": "fingerprints.txt、attempt_<n>/、字典",
-   "freq": "0..n×"
-  },
-  {
-   "path": "scripts/batch.py",
-   "kind": "脚本",
-   "in_package": true,
-   "steps": [
-    "B1"
-   ],
-   "mode": "运行",
-   "reads": "cases.json",
-   "writes": "runs/<批次>/** + results.csv",
-   "freq": "0..1×/批"
-  },
-  {
-   "path": "scripts/dev_lib.py",
-   "kind": "脚本",
-   "in_package": true,
-   "steps": [
-    "B2"
-   ],
-   "mode": "运行",
-   "reads": "$WM_PROJECT_DIR 子库 + dev.meta",
-   "writes": "用户库副本、log.wmake、.so",
-   "freq": "0..1×"
-  },
-  {
-   "path": "release/SKILL.md",
-   "kind": "文档",
-   "in_package": true,
-   "steps": [
-    "全程"
-   ],
-   "mode": "被宿主读",
-   "reads": "—",
-   "writes": "无",
-   "freq": "全程在手"
-  },
-  {
-   "path": "release/QUICKSTART.md",
-   "kind": "文档",
-   "in_package": true,
-   "steps": [
-    "T0 之后"
-   ],
-   "mode": "被人读",
-   "reads": "—",
-   "writes": "无",
-   "freq": "1×"
-  },
-  {
-   "path": "release/SCOPE.md",
-   "kind": "文档",
-   "in_package": true,
-   "steps": [
-    "T0 之前"
-   ],
-   "mode": "被人读",
-   "reads": "—",
-   "writes": "无",
-   "freq": "1×"
-  },
-  {
-   "path": "VERSION / LICENSE",
-   "kind": "元",
-   "in_package": true,
-   "steps": [
-    "T0"
-   ],
-   "mode": "被读",
-   "reads": "—",
-   "writes": "无",
-   "freq": "1×"
-  },
-  {
-   "path": "<case>/case.meta",
-   "kind": "工件",
-   "in_package": false,
-   "steps": [
-    "T4 写",
-    "T5 手改",
-    "T7/T9 读",
-    "B1 移位"
-   ],
-   "mode": "读+写",
-   "reads": "—",
-   "writes": "六键",
-   "freq": "1×"
-  },
-  {
-   "path": "<case>/log.g1 … log.g5",
-   "kind": "工件",
-   "in_package": false,
-   "steps": [
-    "T7 写 g1/g5",
-    "T9 写 g2/g3/g4"
-   ],
-   "mode": "写后被读",
-   "reads": "—",
-   "writes": "RC= 行 + 失败串",
-   "freq": "各 1×"
-  },
-  {
-   "path": "<case>/log.blockMesh / log.checkMesh / log.shortRun / log.run",
-   "kind": "工件",
-   "in_package": false,
-   "steps": [
-    "T6 写 blockMesh+checkMesh",
-    "T8 写 shortRun(+run)"
-   ],
-   "mode": "写后被读",
-   "reads": "—",
-   "writes": "求解器/工具原始输出",
-   "freq": "1×"
-  },
-  {
-   "path": "constant/polyMesh/",
-   "kind": "工件",
-   "in_package": false,
-   "steps": [
-    "T6 写",
-    "T4b 覆盖",
-    "T7/T9 读"
-   ],
-   "mode": "读+写",
-   "reads": "—",
-   "writes": "points/faces/owner/neighbour/boundary",
-   "freq": "1×"
-  },
-  {
-   "path": "<case 父目录>/attempt_<n>/",
-   "kind": "工件",
-   "in_package": false,
-   "steps": [
-    "T10b 写"
-   ],
-   "mode": "写",
-   "reads": "—",
-   "writes": "整个 case 树的副本 + fingerprint.txt",
-   "freq": "0..n×"
-  },
-  {
-   "path": "<case 父目录>/fingerprints.txt",
-   "kind": "工件",
-   "in_package": false,
-   "steps": [
-    "T10a/T10b 写"
-   ],
-   "mode": "写",
-   "reads": "—",
-   "writes": "一行一条指纹（跨 attempt 去重）",
-   "freq": "0..n×"
-  },
-  {
-   "path": "runs/<批次>/results.csv",
-   "kind": "工件",
-   "in_package": false,
-   "steps": [
-    "B1 写"
-   ],
-   "mode": "写",
-   "reads": "—",
-   "writes": "15 列",
-   "freq": "0..1×/批"
-  },
-  {
-   "path": "scripts/deploy.py",
-   "kind": "治理/入口",
-   "in_package": false,
-   "steps": [
-    "T0"
-   ],
-   "mode": "运行",
-   "reads": "远端仓库",
-   "writes": "~/foam-mate/",
-   "freq": "1× 然后按需"
-  },
-  {
-   "path": "scripts/make_export.sh + verify_export.py",
-   "kind": "治理",
-   "in_package": false,
-   "steps": [
-    "用户流程之外"
-   ],
-   "mode": "运行",
-   "reads": "git archive HEAD",
-   "writes": "导出树",
-   "freq": "维护时"
-  },
-  {
-   "path": "scripts/make_release.sh",
-   "kind": "治理",
-   "in_package": false,
-   "steps": [
-    "用户流程之外"
-   ],
-   "mode": "运行",
-   "reads": "白名单 15 条",
-   "writes": "dist/foam-mate-<版本>/",
-   "freq": "发版时"
-  },
-  {
-   "path": "scripts/verify_references.sh",
-   "kind": "治理",
-   "in_package": false,
-   "steps": [
-    "用户流程之外"
-   ],
-   "mode": "运行",
-   "reads": "registry / bench / STATUS / 文档引用",
-   "writes": "无",
-   "freq": "维护时"
-  },
-  {
-   "path": "scripts/status_snapshot.py",
-   "kind": "治理",
-   "in_package": false,
-   "steps": [
-    "用户流程之外"
-   ],
-   "mode": "运行",
-   "reads": "仓库文件",
-   "writes": "STATUS.md 机器段",
-   "freq": "阶段收尾"
-  },
-  {
-   "path": "scripts/check_contracts.py",
-   "kind": "治理",
-   "in_package": false,
-   "steps": [
-    "B1 收尾（仓库内才有）"
-   ],
-   "mode": "运行",
-   "reads": "results.csv / case.meta",
-   "writes": "无",
-   "freq": "批后"
-  },
-  {
-   "path": "scripts/check_release_docs.py",
-   "kind": "治理",
-   "in_package": false,
-   "steps": [
-    "用户流程之外"
-   ],
-   "mode": "运行",
-   "reads": "release/*.md",
-   "writes": "无",
-   "freq": "改文档后"
-  }
+  {"path": "scripts/preflight.sh", "by": "agent，进程 1", "mode": "读环境变量；不写盘", "freq": "1×/会话", "pids": ["P1"]},
+  {"path": "scripts/parse_requirement.py", "by": "agent，进程 2", "mode": "写 `<work>/*.spec.json`", "freq": "1×", "pids": ["P2"]},
+  {"path": "scripts/find_template.sh", "by": "agent，进程 3", "mode": "不写盘", "freq": "≥1×", "pids": ["P3"]},
+  {"path": "scripts/new_case.sh", "by": "agent，进程 4；`batch` 代调", "mode": "写 case 树 + `case.meta`", "freq": "1×/case", "pids": ["P4"]},
+  {"path": "scripts/run_case.sh", "by": "agent，进程 7；`batch` 代调", "mode": "写 `polyMesh`、4 份 log、**改写 `controlDict`**", "freq": "≥1×", "pids": ["P7"]},
+  {"path": "scripts/verify_case.sh", "by": "agent，进程 6/8；`batch` 代调", "mode": "写 `log.g1…g5`", "freq": "≥2×", "pids": ["P6", "P8"]},
+  {"path": "scripts/fix_case.py", "by": "agent，进程 9/10；`batch` 代调", "mode": "写 `fingerprints.txt`、`attempt_<n>/`、字典", "freq": "0..n×", "pids": ["P9", "P10"]},
+  {"path": "scripts/msh2d_to_foam.py", "by": "agent，条件进程", "mode": "写 `constant/polyMesh/*`", "freq": "0..1×", "pids": []},
+  {"path": "scripts/batch.py", "by": "agent，旁支", "mode": "写 `runs/<批次>/**`", "freq": "0..1×/批", "pids": []},
+  {"path": "scripts/dev_lib.py", "by": "agent，旁支", "mode": "写用户库副本、`.so`", "freq": "0..1×", "pids": []},
+  {"path": "release/SKILL.md", "by": "agent，**全程在手**", "mode": "只读", "freq": "全程", "pids": []},
+  {"path": "release/QUICKSTART.md / SCOPE.md", "by": "人，装完 / 装前", "mode": "只读", "freq": "1×", "pids": []},
+  {"path": "<case>/case.meta", "by": "进程 4 写六键；进程 5 手改 `changes`；6/8 读", "mode": "读+写", "freq": "1×", "pids": ["P4", "P5", "P6", "P8"]},
+  {"path": "<case>/log.g1 … log.g5", "by": "进程 6 写 g1/g5；进程 8 写 g2/g3/g4", "mode": "写后被读", "freq": "各 1×", "pids": ["P6", "P8"]},
+  {"path": "<case>/log.blockMesh … log.run", "by": "进程 7 写", "mode": "写后被进程 8 读", "freq": "1×", "pids": ["P7", "P8"]},
+  {"path": "constant/polyMesh/", "by": "进程 7 写；`msh2d` 覆盖", "mode": "读+写", "freq": "1×", "pids": ["P7"]},
+  {"path": "<case 父目录>/attempt_<n>/", "by": "进程 10 写", "mode": "整树副本", "freq": "0..n×", "pids": ["P10"]},
+  {"path": "<case 父目录>/fingerprints.txt", "by": "进程 9/10 写", "mode": "一行一条指纹", "freq": "0..n×", "pids": ["P9", "P10"]},
+  {"path": "runs/<批次>/results.csv", "by": "`batch` 写", "mode": "15 列", "freq": "0..1×/批", "pids": []}
  ],
  "findings": [
-  {
-   "id": "F1",
-   "claim": "这套 harness 没有自然语言入口，也没有 main() 驱动六步",
-   "evidence": "release/SKILL.md:15-21「它不含任何模型调用、不决定下一步做什么、不自己循环」；STATUS.md 里程碑表 M3「未做」；scripts/ 下没有任何脚本 import 另一个脚本（batch.py 除外）",
-   "impact": "图的第一层必须是「宿主读文档 → 决定 → 调某个脚本」"
-  },
-  {
-   "id": "F2",
-   "claim": "用户面工具 10 个，preflight 自检 9 个（不检自己）",
-   "evidence": "SKILL.md:17「十个确定性的命令行工具」；preflight.sh:75-85 的 USER_SCRIPTS 有 9 条；实跑输出「同目录 9 个用户面脚本」",
-   "impact": "必须解释差额，否则读者以为数错了"
-  },
-  {
-   "id": "F3",
-   "claim": "--mode check 之后跑 --stage post 必然红",
-   "evidence": "实跑 rc=3，G3 报 MISSING log.shortRun ⇒ 未判定",
-   "impact": "主链路是两条支线（check 只到 G2），不能画成一条直线"
-  },
-  {
-   "id": "F4",
-   "claim": "verify_case.sh（前置门禁）会往 case 树里写 log.g1 / log.g5",
-   "evidence": "实跑 t7_vpre_nomesh 新增 cavity-01/log.g1、cavity-01/log.g5",
-   "impact": "「门禁只读」是错的；G5 自己把 log.g* 排除，否则第二次跑判自己越界（verify_case.sh:814）"
-  },
-  {
-   "id": "F5",
-   "claim": "run_case.sh --mode short 会改写 controlDict 并【保留】改后的值",
-   "evidence": "short 之后 endTime=0.01、writeInterval=2；派生源原值 10 / 100。full 跑完才恢复",
-   "impact": "短跑后直接读字典做断言会 mismatch（N9 坑 3）；图里必须标「这一步改了文件」"
-  },
-  {
-   "id": "F6",
-   "claim": "fix_case.py 的 locate 也不完全只读：命中规则时会写 fingerprints.txt，且写在 case 的【父目录】",
-   "evidence": "run_dir = case_dir.parent（fix_case.py:459/579）；实跑新增 <work>/fingerprints.txt；declined 那次不写",
-   "impact": "单例用法下所有 case 共用一份台账 → 跨 case 去重"
-  },
-  {
-   "id": "F7",
-   "claim": "fix_case.py --apply 的备份是整个 case 树的完整副本",
-   "evidence": "实跑 attempt_1/ 里有 0/、0.01/、0.5…10、constant/、system/、全部 log = 170+ 文件",
-   "impact": "成本随 time 目录数增长；也是 batch 把 attempt_1 改名 base/ 当 G5 基线的由来"
-  },
-  {
-   "id": "F8",
-   "claim": "单 case 用法下每次 verify_case.sh 都会打印一条必然触发的假警报",
-   "evidence": "「注意 case.meta 同时存在于 case 树与 run 根」——因为 --log 缺省 = --case，LOG_DIR == CASE_DIR，同一个文件被判成两处（verify_case.sh:135-136）",
-   "impact": "读者会以为有两份 case.meta。文档要说明这是无害噪声"
-  },
-  {
-   "id": "F9",
-   "claim": "G1 在还没有网格时也 RC=0",
-   "evidence": "实跑 T7 在 polyMesh 不存在时 G1 RC=0",
-   "impact": "pre 通过不说明网格对；G1 只查文件存在性与 patch 名一致性"
-  },
-  {
-   "id": "F10",
-   "claim": "foamDictionary -set 对不存在的 entry 会新增并退 0",
-   "evidence": "实跑 -entry noSuchKey -set 1 → New entry noSuchKey 1; rc=0",
-   "impact": "回读是唯一防线；fix_case 的 33 就是守这一点的"
-  },
-  {
-   "id": "F11",
-   "claim": "find_template.sh 的单次耗时是 6.7 s（全库 grep 的代价，不是工具效率）",
-   "evidence": "实测 6682 ms",
-   "impact": "标注「本机实测」，不要当性能结论"
-  }
+  {"id": "F1", "claim": "没有自然语言入口，没有 `main()` 驱动六步", "evidence": "`release/SKILL.md:15`「不决定下一步做什么、不自己循环」；`grep` 十个脚本零 stdin"},
+  {"id": "F2", "claim": "文档说「十个工具」，`preflight` 只自检 **9** 个（不检自己）", "evidence": "`release/SKILL.md:17` vs `scripts/preflight.sh:75`；实跑打「9 个用户面脚本」"},
+  {"id": "F3", "claim": "**`--mode check` 之后跑 `--stage post` 必然 `rc=3`**", "evidence": "实跑：G3 报 `MISSING log.shortRun ⇒ 未判定，不是通过`"},
+  {"id": "F4", "claim": "**`pre` 门禁会往 case 树写 `log.g1`/`log.g5`**", "evidence": "实跑 `find` 差集；脚本头 `scripts/verify_case.sh:46` 自述"},
+  {"id": "F5", "claim": "**`--mode short` 改写 `controlDict` 并保留**（`endTime` 10→0.01、`writeInterval` 100→2）", "evidence": "实跑后 `grep`；恢复只在 `scripts/run_case.sh:231` 的 `full` 分支"},
+  {"id": "F6", "claim": "`fix_case.py locate` 也会写盘：命中规则时写 `fingerprints.txt`，落在 **case 的父目录**", "evidence": "`run_dir = case_dir.parent`（`scripts/fix_case.py:459` 与 `scripts/fix_case.py:579`）；实跑新增"},
+  {"id": "F7", "claim": "`fix_case.py --apply` 的备份是**整个 case 树的副本**（实测 170+ 文件）", "evidence": "实跑 `attempt_1/` 文件清单；成本随 time 目录数增长"},
+  {"id": "F8", "claim": "单 case 用法下**每次** `verify_case.sh` 都打一条必然触发的假警报", "evidence": "`--log` 缺省 = `--case`（`scripts/verify_case.sh:121`），同一个 `case.meta` 被判成「两处都有」（`scripts/verify_case.sh:135`）"},
+  {"id": "F9", "claim": "**还没有网格时 G1 也 `RC=0`**", "evidence": "实跑；patch 比对在无 `boundary` 时只写 `SKIP`（`scripts/verify_case.sh:655`）"},
+  {"id": "F10", "claim": "`foamDictionary -set` 对不存在的 entry **新增并退 0**", "evidence": "实跑 `-entry noSuchKey -set 1` → `New entry noSuchKey 1;` rc=0"},
+  {"id": "F11", "claim": "`find_template.sh` 单次 6.7 s 是**全库 grep 的数据量代价**，不是工具性能", "evidence": "实测 6682 ms（`--keyword cavity --limit 5`，`FOUND=28`）"},
+  {"id": "F12", "claim": "**两份对外文档的步骤顺序不一致**（前置门禁在跑之前 vs 之后）", "evidence": "`QUICKSTART.md` §6/§7/§8 vs `SKILL.md` 步骤 5/6"}
+ ],
+ "qa": [
+  {"q": "30 秒版：这套东西到底是什么？", "a": "这套东西不是 agent，是 agent 的工具层。它没有程序入口——入口是一份 SKILL.md，agent 靠 frontmatter 的 description 匹配到「建 case」这个意图，把文档读进上下文，然后按里面的命令块逐个调脚本。每个脚本是独立进程，协议就三条：argv 进，stdout + 退出码出，状态全落盘。所以控制流不在代码里，在 agent 的循环里；脚本只保证每一步可判定——同一输入同一输出，失败有独立退出码。一句话进来之后是 8 个进程、42 次函数进入、零次跨进程函数调用。这是 tool-use 的最原始形态，MCP 只是把这个契约标准化了。", "cls": "a30"},
+  {"q": "「你的 agent 在哪？」", "a": "诚实答：这一版 agent 是外部的（Claude Code / 人）。接 LLM 的那一层我明确没做，因为要先证明工具层确定性。"},
+  {"q": "「为什么不写成一个 main？」", "a": "判定权必须外置。合成一个程序后，失败时无法区分「模型判断错」还是「工具实现错」。现在边界很硬：`parse_requirement` 只猜（猜不到退 10 交人），`fix_case locate` 只肯说改哪儿、值恒为 null。"},
+  {"q": "「怎么测？」", "a": "每个脚本 5 个左右退出码，能写变异测试：把判据改哑，测试必须红。守 G2 那条最有说服力——只认 `Mesh OK.` 那行，**绝不看 checkMesh 退出码**，因为实测网格不合格时它仍退 0。"},
+  {"q": "「脚本之间不共享状态，不慢吗？」", "a": "多几次进程启动（毫秒级），换来每步可单独重跑、单独测、单独替换。实测最小链路 8 步合计 < 10 秒，其中 6.7 秒是一次全库 grep。"},
+  {"q": "「和让 LLM 直接写 shell 命令有什么区别？」", "a": "区别是**判据**。LLM 写的命令没有退出码契约，成功失败靠猜；这里每个码都有测试和文档，失败时 agent 拿到的是一个确定的数字。"},
+  {"q": "「怎么防止 agent 乱来？」", "a": "三道：停点规则写进 SKILL.md（缺项必须停下问人，不许补默认值）；G5 只允许改 `allowed_files`；派生只允许 `cp -a` 自 `$FOAM_TUTORIALS`。"},
+  {"q": "「换一个 agent 还能用吗？」", "a": "能，而且已经验证过——同一批脚本被 `batch.py` 用 `subprocess` 驱动，跑完了 12 任务 × 3 次的基准。换宿主只换读文档的那一半。"},
+  {"q": "「为什么不用 MCP？」", "a": "那时还没这需求。MCP 解决「工具怎么被发现和授权」，我这套用「一份带 frontmatter 的文档」解决了同一件事，代价是没有结构化 schema、不能跨进程复用连接。要接 MCP 的话，十个脚本各自的 argv 就是现成的 tool schema。"}
+ ],
+ "checks": [
+  {"t": "① 断言「没有 stdin 入口」", "cmd": ["grep -n \"input()\\|sys.stdin.read\\|/dev/stdin\" scripts/*.py scripts/*.sh"], "expect": "无输出。"},
+  {"t": "② 断言「入口是 SKILL.md 的 frontmatter」", "cmd": ["sed -n '1,4p' release/SKILL.md"], "expect": "`name:` 与 `description:` 两行。"},
+  {"t": "③ 断言「脚本之间零调用，除 batch.py」", "cmd": ["grep -rn 'scripts / \"' scripts/*.py"], "expect": "只有 `scripts/batch.py` 的 482 / 499 / 511 / 593 / 814 五行。"},
+  {"t": "④ 复现进程 2 的函数序列（trace 实测）", "cmd": ["python3 -m trace --trace scripts/parse_requirement.py \\", "  --text \"一个二维方腔，顶盖 1 m/s，水，层流，稳态\" --out /tmp/x.json 2>&1 \\", "  | grep -oE \"modulename: parse_requirement, funcname: [A-Za-z_]+\" \\", "  | sed 's/.*funcname: //' | awk '!s[$0]++'"], "expect": "逐行、去掉连续的重复进入后正好 10 个：`_UsageParser` `main` `run` `extract_quad` `_first_match` `_extract_properties` `validate_quad` `_normalize_value` `exit_code_for` `to_json`。必须带 `modulename: parse_requirement` 前缀过滤，否则会捞到标准库的几百个 `_find_and_load` / `add_argument`。"},
+  {"t": "⑤ 复现进程 7 的函数序列（bash -x）", "cmd": ["export PS4='+FN=${FUNCNAME[0]:-main}: '", "bash -x scripts/run_case.sh --case <某个已派生的 case> --mode short 2>&1 \\", "  | grep -oE \"FN=[a-z_]+\" | awk '!s[$0]++'"], "expect": "`main` → `run_capped` → `handle` → `read_entry` → `is_number` → `set_entry`。"},
+  {"t": "⑥ 断言「pre 会写 case 树」", "cmd": ["grep -n '唯一写操作' scripts/verify_case.sh", "ls <case>/log.g1 <case>/log.g5"], "expect": "命中一行；两个日志都在。"},
+  {"t": "⑦ 断言「short 会改写并保留 controlDict」", "cmd": ["sed -n '225,226p;231,234p' scripts/run_case.sh", "grep -nE \"^(endTime|writeInterval)\" <case>/system/controlDict"], "expect": "先是 `set_entry endTime \"$SHORT_END\"` / `set_entry writeInterval 2`，然后是 `if [ \"$MODE\" = \"full\" ]` 里的两行恢复；跑过 short 的 case 里是 `0.01` 与 `2`。"},
+  {"t": "⑧ 断言「10 个工具 vs 自检 9 个」", "cmd": ["sed -n '/^WL_SRC=(/,/^)/p' scripts/make_release.sh | grep -c 'scripts/'", "sed -n '75,85p' scripts/preflight.sh | grep -cE '\\.(sh|py)$'", "source /opt/openfoam13/etc/bashrc && bash scripts/preflight.sh | grep 'OK scripts'"], "expect": "`10`、`9`、以及实跑那行「同目录 9 个用户面脚本均存在且可执行」。"},
+  {"t": "⑨ 断言「备份是整个 case 树」", "cmd": ["grep -n \"run_dir = case_dir.parent\" scripts/fix_case.py", "find <case 父目录>/attempt_1 -type f | wc -l"], "expect": "`459` 与 `579` 两处；文件数远大于「只备份一个字典」。"},
+  {"t": "⑩ 断言「退出码原文只在脚本头部，本文没有另造总表」", "cmd": ["grep -n \"退出码：\" scripts/preflight.sh scripts/parse_requirement.py scripts/find_template.sh \\", "  scripts/new_case.sh scripts/run_case.sh scripts/verify_case.sh scripts/fix_case.py scripts/dev_lib.py"], "expect": "每文件一行头部契约；本文只引用它们，不复述整表。"},
+  {"t": "⑪ 断言「两份文档顺序不一致」（F12）", "cmd": ["grep -n \"^## [0-9]\" release/QUICKSTART.md", "grep -n \"^### 步骤\" release/SKILL.md"], "expect": "QUICKSTART 的 §6 是前置门禁、§7 才是跑；SKILL.md 的步骤 5 是跑、步骤 6 才是门禁。"},
+  {"t": "⑫ 自检：本文没有本机标识与家目录绝对路径", "cmd": ["grep -nE \"/home/[a-z]|/mnt/[a-z]/\" references/15-harness-flow.md"], "expect": "0 行。注意这条模式自身就是扫描器：命中的是「家目录 + 一个字母」，本页正文里除它之外不出现这类字面量。"}
  ]
 };
-const STEPS = FLOW.steps, FILES = FLOW.files, FIND = FLOW.findings, LAYERS = FLOW.layers;
-const byId = {}; STEPS.forEach(s => byId[s.id] = s);
-const FAIL_IDS = ['T9','T10a','T10b','T11'];
-const ANCHOR = {T4b:'T4', T10a:'T9', T10b:'T9', T11:'T9'};
-const SIDE = ['B1','B2'];
-const MAIN = STEPS.filter(s => s.branch === 'main');
-const ORDER = STEPS.map(s => s.id);
 
-/* ---- 事实表里的 11 条发现，挂到对应时刻上 ---- */
-const F_OF = {T1:['F2'], T3:['F11'], T5:['F10'], T7:['F4','F9'], T8:['F5'], T9:['F3','F8'],
-              T10a:['F6'], T10b:['F7'], T4:['F1'], T0:['F1']};
+/* ================= 小工具 ================= */
+const PROCS = FLOW.procs;
+const PIDX = {}; PROCS.forEach(p => { PIDX[p.id] = p; });
+const P_ORDER = PROCS.map(p => p.id);
+const state = { view: "entry", proc: "P2", mode: "full" };
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
-const esc = t => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc = t => String(t == null ? "" : t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const md = t => {
+  let s = esc(t);
+  s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+  s = s.replace(/\*\*([\s\S]+?)\*\*/g, "<b>$1</b>");
+  return s;
+};
+const lines = x => Array.isArray(x) ? x : [x];
+const cmdText = x => lines(x).join("\n");
+const evCls = e => e === "trace" ? "tr" : (e === "ast" ? "as" : "ex");
+const EVTXT = { trace: "trace", ast: "ast", external: "external" };
 
-function actorCls(a){
-  const host = a.indexOf('宿主') >= 0, human = a.indexOf('人') >= 0;
-  if (host) return human ? 'a-host a-mixed' : 'a-host';
-  return human ? 'a-person' : 'a-script';
+/* ================= 复制 ================= */
+function doCopy(box, btn) {
+  const pre = box.querySelector("pre");
+  const text = pre ? pre.textContent : "";
+  const orig = btn.dataset.old || btn.textContent;
+  btn.dataset.old = orig;
+  const done = m => {
+    btn.textContent = m; btn.classList.add("ok");
+    clearTimeout(btn._t);
+    btn._t = setTimeout(() => { btn.textContent = orig; btn.classList.remove("ok"); }, 1500);
+  };
+  const fb = () => {
+    if (!pre) return done("复制失败");
+    try {
+      const r = document.createRange(); r.selectNodeContents(pre);
+      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      done("已选中 · Ctrl+C");
+    } catch (e) { done("复制失败"); }
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => done("已复制")).catch(fb);
+  } else fb();
 }
-function actorVar(a){
-  const c = actorCls(a);
-  return c.indexOf('a-person') >= 0 ? 'person' : (c.indexOf('a-script') >= 0 ? 'script' : (c.indexOf('a-mixed') >= 0 ? 'mixed' : 'host'));
-}
-const shortFreq = f => String(f).replace(/（[^）]*）/g, '').replace(/\(.*?\)/g, '').trim();
+document.addEventListener("click", e => {
+  const b = e.target.closest(".cp");
+  if (!b) return;
+  const box = b.closest(".cmdbox");
+  if (box) doCopy(box, b);
+});
 
-/* ---- 把 files[].steps 的自由文本解析成 {ids, dir} ---- */
-const ID_RE = /T10a|T10b|T4b|T11|T12|T1[0-9]|T[0-9]|B[12]/g;
-function fileHits(f){
+/* ================= ① 入口 ================= */
+function renderEntry() {
+  $("#pills").innerHTML = FLOW.meta.stats.map(s =>
+    `<div class="pill ${s.cls}"><span class="n">${esc(s.n)}</span><span class="l">${esc(s.l)}</span></div>`).join("");
+
+  $("#entrySteps").innerHTML = FLOW.entry.steps.map((s, i) => `
+    <div class="step"><div class="si">${i}</div>
+      <div class="st"><b>${esc(s.t)}</b><br>${s.d}</div></div>`).join("");
+
+  $("#entryQuote").innerHTML = FLOW.entry.quote;
+  $("#entryPath").textContent = FLOW.entry.file + " · " + FLOW.entry.where;
+  $("#entryYaml").textContent = FLOW.entry.yaml.join("\n");
+  $("#entryHint").innerHTML = FLOW.entry.hint;
+  $("#entryPunch").textContent = FLOW.meta.punch;
+
+  $("#chanList").innerHTML = FLOW.channels.map(c => `
+    <div class="ch">
+      <div class="cd"><b>${esc(c.dir)}</b>${esc(c.note)}</div>
+      <div>
+        <div class="cn">${esc(c.name)}</div>
+        <div class="cf mono">${esc(c.form)}</div>
+      </div>
+    </div>`).join("");
+
+  $("#ftSrc").textContent = FLOW.meta.src;
+  $("#ftGen").textContent = FLOW.meta.generated;
+  $("#ftEnv").textContent = FLOW.meta.env;
+}
+
+/* ================= ② 进程链 ================= */
+function pcard(p, extra) {
+  return `<div class="pcard ${p.kind === "side" ? "side" : ""} ${extra || ""}" data-id="${p.id}" tabindex="0" role="button"
+       aria-label="进程 ${p.n} ${esc(p.name)}">
+    <div class="prow"><span class="pn">进程 ${p.n}</span><span class="ev ${evCls(p.evidence)}">${EVTXT[p.evidence] || p.evidence}</span></div>
+    <div class="pnm">${esc(p.label)}</div>
+    <div class="pfile" title="${esc(p.name)}">${esc(p.name)}</div>
+    <div class="po" title="${esc(lines(p.writes)[0])}">→ ${esc(lines(p.writes)[0])}</div>
+  </div>`;
+}
+
+function renderProcs() {
+  const main = PROCS.filter(p => p.kind === "main");
+  const side = PROCS.filter(p => p.kind === "side");
+
+  $("#procs").innerHTML = main.map((p, i) =>
+    pcard(p) + (i < main.length - 1 ? '<div class="parw">→</div>' : "")).join("");
+
+  $("#redrow").innerHTML =
+    `<span class="rsrc">进程 6 或 8 退出码非 0</span><div class="parw red">→</div>` +
+    side.map((p, i) => pcard(p) + (i < side.length - 1 ? '<div class="parw red">→</div>' : "")).join("") +
+    `<div class="parw red">→</div><span class="rback">回进程 7 重跑</span>`;
+
+  $("#sidechips").innerHTML = FLOW.branches.map(b => `
+    <div class="schip"><b>${esc(b.name)}</b><i class="ev ${evCls(b.ev)}">${esc(b.ev)}</i><br>${esc(b.chain)}</div>`).join("");
+
+  $("#revtable").innerHTML =
+    `<thead><tr><th>文件</th><th>被谁、在进程几</th><th>读 / 写</th><th>频次</th><th>定位</th></tr></thead><tbody>` +
+    FLOW.files.map(f => `
+      <tr><td class="p">${esc(f.path)}</td><td>${md(f.by)}</td><td>${md(f.mode)}</td><td>${esc(f.freq)}</td>
+      <td>${f.pids.length ? f.pids.map(id => `<button class="pc ${PIDX[id] && PIDX[id].kind === "side" ? "side" : ""}" data-goto="${id}">${id}</button>`).join("") : '<span class="pc none">不在 10 个里</span>'}</td></tr>`).join("") +
+    `</tbody>`;
+}
+
+function renderDetail() {
+  const d = $("#detail");
+  const p = PIDX[state.proc];
+  if (!p) { d.innerHTML = '<div class="ph">未选中进程。</div>'; return; }
+  const fns = p.fns || [];
+  const fnRows = fns.length ? `<table class="fntable">
+      <thead><tr><th>函数</th><th>行号</th><th>干什么</th></tr></thead><tbody>
+      ${fns.map(f => `<tr>
+        <td class="fn">${esc(f.fn)}</td>
+        <td class="ln ${f.line ? "" : "noline"}">${f.line ? ":" + esc(f.line) : "未给"}</td>
+        <td>${f.what ? md(f.what) : '<span style="color:#57646f">—（MD 未给）</span>'}</td></tr>`).join("")}
+      </tbody></table>` : '<div class="ph" style="margin:0">无函数封装 —— 见下方行级锚点。</div>';
+
+  const anchors = (p.anchors || []).length ? `
+    <div class="sect">行级锚点 / 外部命令</div>
+    <table class="fntable"><thead><tr><th>行</th><th>干了什么</th></tr></thead><tbody>
+    ${p.anchors.map(a => `<tr><td class="ln">:${esc(a.line)}</td><td>${md(a.what)}</td></tr>`).join("")}
+    </tbody></table>` : "";
+
+  const tableBlock = p.table ? `
+    <div class="sect">${esc(p.table.title)}</div>
+    <table class="minitable"><thead><tr>${p.table.head.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>
+    ${p.table.rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}
+    </tbody></table>
+    <div class="hint" style="margin-top:5px">${md(p.table.sub)}</div>` : "";
+
+  d.innerHTML = `
+    <div class="dhead">
+      <div class="did">${p.id}</div>
+      <div>
+        <div class="dtitle">${esc(p.name)}</div>
+        <div class="dsub">
+          <span class="tag ${p.kind === "main" ? "s" : "f"}">进程 ${p.n} · ${p.kind === "main" ? "主进程" : "回修插入"}</span>
+          <span class="ev ${evCls(p.evidence)}">${EVTXT[p.evidence]}</span>
+        </div>
+      </div>
+    </div>
+    <table class="kv">
+      <tr><th>脚本</th><td class="mono">${esc(p.script)}</td></tr>
+      <tr><th>锚点行</th><td class="mono">${p.line && p.line !== "—" ? ":" + esc(p.line) : "—"}</td></tr>
+      <tr><th>执行者</th><td>${md(p.actor)}</td></tr>
+      <tr><th>退出码</th><td class="mono">${md(p.exit)}</td></tr>
+    </table>
+    <div class="cmdbox"><pre>${esc(cmdText(p.argv))}</pre><button class="cp" type="button">复制</button></div>
+    <div class="sect">读什么</div>
+    <ul class="plain">${lines(p.reads).map(x => `<li>${md(x)}</li>`).join("")}</ul>
+    <div class="sect">写什么</div>
+    <ul class="plain">${lines(p.writes).map(x => `<li>${md(x)}</li>`).join("")}</ul>
+    <div class="sect">红了走哪条边</div>
+    <div class="note">${md(p.onRed)}</div>
+    <div class="sect">函数作用表</div>
+    ${fnRows}
+    ${anchors}
+    ${tableBlock}
+    <div class="sect">注意</div>
+    <div class="note">${md(p.note)}</div>
+    <button class="gostack" type="button" data-stack="${p.id}">看函数栈 →</button>
+  `;
+}
+
+function highlightRail() {
+  $$("#procs .pcard, #redrow .pcard").forEach(c => {
+    c.classList.toggle("sel", c.dataset.id === state.proc);
+  });
+}
+
+/* ================= ③ 函数栈 ================= */
+function chainOf(p) {
+  if (p.chains && state.mode !== "full" && p.chains[state.mode]) return p.chains[state.mode].chain;
+  return p.callChain;
+}
+function parseNode(raw) {
+  const s = String(raw);
+  const m = s.match(/^(.*?)\s*×(\d+)\s*$/);
+  const base = m ? m[1] : s;
+  const count = m ? parseInt(m[2], 10) : 1;
+  const i = base.indexOf(" · ");
+  return { raw: s, fn: (i < 0 ? base : base.slice(0, i)).trim(), arg: i < 0 ? "" : base.slice(i + 3), count: count };
+}
+function buildStack(p) {
   const out = [];
-  (f.steps || []).forEach(raw => {
-    if (raw.indexOf('用户流程之外') >= 0) { out.push({raw, ids:[], dir:'none', all:false}); return; }
-    if (raw.indexOf('全程') >= 0) { out.push({raw, ids: MAIN.map(s => s.id), dir:'read', all:true}); return; }
-    let dir = 'run';
-    if (/写|覆盖|手改|移位/.test(raw)) dir = 'write';
-    else if (/读/.test(raw)) dir = 'read';
-    const ids = [...new Set(raw.match(ID_RE) || [])];
-    out.push({raw, ids, dir, all:false});
+  chainOf(p).forEach(raw => {
+    const n = parseNode(raw);
+    const last = out[out.length - 1];
+    if (last && last.raw === n.raw && n.count === 1 && last.count > 0 && !last.locked) { last.count += 1; return; }
+    n.locked = n.count > 1;
+    out.push(n);
   });
   return out;
 }
-const DIRLAB = {read:'读', write:'写', run:'运行', none:'—'};
-const DIRCLS = {read:'r', write:'w', run:'n', none:'z'};
-
-function stepFiles(id){
-  const acc = [], seen = {};
-  FILES.forEach(f => fileHits(f).forEach(h => {
-    if (!h.ids.includes(id)) return;
-    const k = f.path + '|' + h.dir;
-    if (seen[k]) return; seen[k] = 1;
-    acc.push({f, dir:h.dir, raw:h.raw, all:h.all});
-  }));
-  return acc;
-}
-function filesOfStepSorted(id){
-  return stepFiles(id).sort((a,b) => (a.all?1:0) - (b.all?1:0));
+function fnOf(p, name) {
+  return (p.fns || []).find(f => f.fn === name) || null;
 }
 
-/* ================= 状态 ================= */
-const state = {view:'timeline', step:null, file:null};
+function renderStack() {
+  const p = PIDX[state.proc] || PROCS[0];
+  const sp = $("#stackProc");
+  sp.innerHTML = PROCS.map(x =>
+    `<option value="${x.id}"${x.id === p.id ? " selected" : ""}>进程 ${x.n} · ${esc(x.name)}</option>`).join("");
 
-/* ================= 顶部：11 条发现 ================= */
-function renderFindings(){
-  $('#findingList').innerHTML = FIND.map(f => `
-    <div class="fitem" id="find-${f.id}">
-      <div><span class="fid">${f.id}</span><span class="claim">${esc(f.claim)}</span></div>
-      <div class="ev">${esc(f.evidence)}</div>
-      <div class="imp">${esc(f.impact)}</div>
-    </div>`).join('');
-}
-
-/* ================= 时间轴 ================= */
-function nodeBadges(s){
-  const b = [];
-  if (s.id === 'T5') b.push('<span class="nbadge">不经 harness · F10</span>');
-  if (s.id === 'T6') b.push('<span class="nmini">--mode check</span>');
-  if (s.id === 'T8') b.push('<span class="nmini">short</span><span class="nmini">full</span>');
-  if (s.id === 'T7') b.push('<span class="nbadge">写 log.g1/g5 · F4</span>');
-  if (s.id === 'T8') b.push('<span class="nbadge">改写 controlDict 并保留 · F5</span>');
-  if (s.id === 'T9') b.push('<span class="nbadge">只跑过 check → 必红 · F3</span>');
-  if (s.id === 'T4') b.push('<span class="nbadge g">cp -a 整树 · 18 条目</span>');
-  return b.join('');
-}
-
-function renderTimeline(){
-  const rail = $('#rail');
-  rail.innerHTML = MAIN.map(s => {
-    const kids = STEPS.filter(x => ANCHOR[x.id] === s.id);
-    const kind = kids.some(k => FAIL_IDS.includes(k.id)) ? 'fail' : 'side';
-    return `
-    <div class="cell" data-cell="${s.id}">
-      <div class="node ${actorCls(s.actor)}" data-id="${s.id}" tabindex="0" role="button"
-           aria-label="${s.id} ${esc(s.label)}">
-        <div class="nid">${s.id}</div>
-        <div class="nlabel">${esc(s.label)}</div>
-        <div class="nactor">${esc(s.actor)}</div>
-        <div class="nfreq">${esc(s.freq)}</div>
-        ${nodeBadges(s)}
-      </div>
-      ${kids.length ? `<div class="kidbox" data-kind="${kind}">${kids.map(k => `
-        <div class="chip ${FAIL_IDS.includes(k.id) ? 'fail' : ''}" data-id="${k.id}" tabindex="0" role="button">
-          <b>${k.id}</b><span class="lb">${esc(k.label)}</span><span class="cf">${esc(shortFreq(k.freq))}</span>
-        </div>`).join('')}</div>` : ''}
-    </div>`;
-  }).join('');
-
-  $('#sidechips').innerHTML = SIDE.map(id => {
-    const s = byId[id];
-    return `<div class="chip" data-id="${id}" tabindex="0" role="button">
-      <b>${s.id}</b><span class="lb">${esc(s.label)}</span><span class="cf">${esc(shortFreq(s.freq))}</span></div>`;
-  }).join('');
-
-  rail.addEventListener('click', e => {
-    const t = e.target.closest('[data-id]');
-    if (t) selectStep(t.dataset.id, {from:'timeline'});
-  });
-  $('#sidechips').addEventListener('click', e => {
-    const t = e.target.closest('[data-id]');
-    if (t) selectStep(t.dataset.id, {from:'timeline'});
-  });
-  rail.addEventListener('keydown', e => {
-    if (e.key === 'Enter' || e.key === ' ') { const t = e.target.closest('[data-id]'); if (t) { e.preventDefault(); selectStep(t.dataset.id); } }
-  });
-}
-
-function drawEdges(){
-  const wrap = $('#timeline'), svg = $('#edges'), rail = $('#rail');
-  if (!wrap || !svg) return;
-  const W = rail.scrollWidth + 20, H = wrap.scrollHeight;
-  svg.setAttribute('width', W); svg.setAttribute('height', H);
-  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  const base = svg.getBoundingClientRect();
-  const pos = el => { const r = el.getBoundingClientRect(); return {x:r.left-base.left, y:r.top-base.top, w:r.width, h:r.height}; };
-  let o = '';
-  const nodes = MAIN.map(s => $(`.node[data-id="${s.id}"]`, rail));
-  for (let i = 0; i < nodes.length - 1; i++){
-    const a = pos(nodes[i]), b = pos(nodes[i+1]);
-    const y1 = a.y + a.h/2, y2 = b.y + b.h/2, mid = (a.x + a.w + b.x)/2;
-    o += `<path class="e-main" d="M${a.x+a.w} ${y1} H${mid} V${y2} H${b.x}"/>`;
-    o += `<path class="e-arr" d="M${mid-3} ${y2-5} L${mid+3} ${y2} L${mid-3} ${y2+5}"/>`;
-  }
-  // 旁支短连线
-  MAIN.forEach(s => {
-    const box = $(`.kidbox[data-anchor], .cell[data-cell="${s.id}"] .kidbox`, rail);
-    if (!box) return;
-    const n = pos($(`.node[data-id="${s.id}"]`, rail)), k = pos(box);
-    const fail = box.dataset.kind === 'fail';
-    o += `<path class="${fail ? 'e-fail' : 'e-dash'}" d="M${n.x+n.w/2} ${n.y+n.h} V${k.y-1}"/>`;
-  });
-  // F3：只跑过 check 就直接 post —— 上方绕行的红线
-  const n6 = $(`.node[data-id="T6"]`, rail), n9 = $(`.node[data-id="T9"]`, rail);
-  if (n6 && n9){
-    const a = pos(n6), b = pos(n9);
-    const yTop = Math.min(a.y, b.y) - 34;
-    o += `<path class="e-f3" d="M${a.x+a.w/2} ${a.y} V${yTop} H${b.x+b.w/2} V${b.y-2}"/>`;
-    o += `<circle cx="${a.x+a.w/2}" cy="${yTop}" r="2.6" fill="#e26a60"/>`;
-    o += `<circle cx="${b.x+b.w/2}" cy="${yTop}" r="2.6" fill="#e26a60"/>`;
-    o += `<text class="e-lab" x="${(a.x+a.w/2 + b.x+b.w/2)/2}" y="${yTop-7}" text-anchor="middle">跳过 T8（只跑过 --mode check）→ post 必红 rc=3 · F3</text>`;
-  }
-  svg.innerHTML = o;
-}
-
-/* ================= 文件地图 ================= */
-const GROUPS = [
-  {kind:'脚本',  title:'脚本', hint:'发布包内 10 个用户面工具（preflight 自检 9 个，不检自己 · F2）'},
-  {kind:'文档',  title:'文档', hint:'宿主读 SKILL.md，人读 QUICKSTART / SCOPE'},
-  {kind:'元',    title:'元',   hint:'版本与许可证，只有装的时候被读'},
-  {kind:'工件',  title:'工件', hint:'case 树里被写出来的东西——不在发布包里，每次跑才产生'},
-  {kind:'治理',  title:'治理', hint:'', collapse:true}
-];
-function kindOf(f){ return f.kind === '治理/入口' ? '治理' : f.kind; }
-
-function fileCard(f){
-  const hits = fileHits(f);
-  const chips = hits.map(h => {
-    if (h.dir === 'none') return `<span class="hit z">不在流程上</span>`;
-    return h.ids.map(id => `<span class="hit ${DIRCLS[h.dir]}" data-id="${id}">${id}<span class="dd">${DIRLAB[h.dir]}</span></span>`).join('');
-  }).join('');
-  const pkg = f.in_package ? '<span class="tag s">发布包内</span>' : '<span class="tag f">不进发布包</span>';
-  return `<div class="fcard" data-path="${esc(f.path)}">
-    <div class="fpath">${esc(f.path)}</div>
-    <div class="fmeta">${pkg}<span class="tag">${esc(f.mode)}</span><span class="tag">${esc(f.freq)}</span></div>
-    <div class="fhits">${chips}</div>
-  </div>`;
-}
-
-function renderFilemap(){
-  const host = $('#filemap');
-  host.innerHTML = GROUPS.map(g => {
-    const list = FILES.filter(f => kindOf(f) === g.kind)
-      .sort((a,b) => (a.kind === '治理/入口' ? -1 : b.kind === '治理/入口' ? 1 : 0));
-    if (!list.length) return '';
-    const inner = `<div class="fgrid2">${list.map(fileCard).join('')}</div>`;
-    const head = `<h3><span>${g.title}</span><span class="n">${list.length}</span>${g.hint ? `<span class="hint">${esc(g.hint)}</span>` : ''}</h3>`;
-    if (g.collapse){
-      return `<div class="fgroup"><details class="gov" id="govGroup">
-        <summary>治理 · ${list.length} 个 —— <span class="warn">用户流程里一次都不跑，除非你在维护</span>（deploy.py 是例外：T0 装一次）</summary>
-        ${inner}</details></div>`;
-    }
-    return `<div class="fgroup">${head}${inner}</div>`;
-  }).join('');
-
-  host.addEventListener('click', e => {
-    const hit = e.target.closest('.hit[data-id]');
-    if (hit){ e.stopPropagation(); selectStep(hit.dataset.id, {from:'filemap'}); return; }
-    const card = e.target.closest('.fcard');
-    if (card) selectFile(card.dataset.path);
-  });
-}
-
-/* 文件被选中时，顶部亮一条「被哪几个时刻碰过」的带子 */
-function renderStrip(){
-  const host = $('#stripHost');
-  if (!state.file){ host.innerHTML = `<div class="strip"><span class="sp">未选文件</span>点下面任意一张卡片：这里会亮起它被哪几个时刻碰过，并标明读 / 写 / 运行。</div>`; return; }
-  const f = FILES.find(x => x.path === state.file); if (!f) { host.innerHTML = ''; return; }
-  const hits = fileHits(f);
-  const all = [];
-  hits.forEach(h => h.ids.forEach(id => { if (!all.some(x => x.id === id)) all.push({id, dir:h.dir}); }));
-  const seq = ORDER.filter(id => all.some(x => x.id === id)).map(id => {
-    const d = all.find(x => x.id === id).dir;
-    return `<span class="hit ${DIRCLS[d]}" data-id="${id}">${id}<span class="dd">${DIRLAB[d]}</span></span>`;
-  }).join(' ');
-  host.innerHTML = `<div class="strip">
-    <div><span class="sp">${esc(f.path)}</span>${esc(f.mode)} · ${esc(f.freq)} · ${f.in_package ? '发布包内' : '不进发布包'}</div>
-    <div style="margin-top:6px">${seq || '<span class="hit z">不在用户流程上</span>'}<span style="color:var(--dim);font-size:11.5px;margin-left:8px">（点任意时刻回到时间轴定位）</span></div>
-  </div>`;
-  host.querySelectorAll('.hit[data-id]').forEach(el => el.addEventListener('click', () => selectStep(el.dataset.id, {from:'filemap'})));
-}
-
-/* ================= 失败回修链 ================= */
-const STAGES = [
-  {n:'①', node:'T10a', title:'fix_case 定位', body:'读失败日志，跑 4 条定位规则（3 正则 + 1 兜底），只吐出 <code>{file, entry, new_value}</code>。不写任何字典（<code>written</code> 恒 false）。', ff:['F6']},
-  {n:'②', node:'T10a', title:'fingerprints.txt（父目录）', body:'命中规则时才追加一行指纹；<code>declined</code> 时不写。<b>台账落在 case 的父目录</b>——单例用法下所有 case 共用一份。', ff:['F6']},
-  {n:'③', node:'T10b', title:'attempt_1/（整个 case 树的副本）', body:'apply 之前把<b>整个 case 树</b>复制成 <code>attempt_1/</code>，实测 170+ 文件。成本随时间目录数增长，也是 batch 把 <code>attempt_1</code> 改名 <code>base/</code> 当 G5 基线的由来。', ff:['F7']},
-  {n:'④', node:'T10b', title:'就地改字典 → 回读比对', body:'只自动应用标量 set；结构修复（加 dict 块 / 缺整个文件）一律 <code>declined</code>。写前校验要求 entry 在文件里<b>恰好出现 1 次</b>，否则退 33 且不备份、不写。', ff:[]},
-  {n:'⑤', node:'T11', title:'重跑（回 T6 / T8 / T9）', body:'harness 不自己循环：重跑由宿主决定。指纹重复（32）= 上一轮改动没起作用 → 停下问人。', ff:[]}
-];
-function renderRepair(){
-  $('#failgrid').innerHTML = STAGES.map((s, i) => `
-    <div class="stage" data-i="${i}" data-node="${s.node}">
-      <div class="snid">${s.node}</div>
-      <div class="sn">${s.n}</div>
-      <div class="st">${esc(s.title)}</div>
-      <div class="sd">${s.body}</div>
-      ${s.ff.length ? `<div class="ff">${s.ff.map(id => `<b>${id}</b> ${esc((FIND.find(f => f.id === id) || {}).claim || '')}`).join('<br>')}</div>` : ''}
-    </div>`).join('');
-  $('#failgrid').addEventListener('click', e => {
-    const st = e.target.closest('.stage');
-    if (!st) return;
-    $$('.stage').forEach(x => x.classList.remove('sel'));
-    st.classList.add('sel');
-    selectStep(st.dataset.node, {from:'repair', silent:true});
-  });
-}
-let playTimer = null;
-function playChain(){
-  const st = $$('.stage'), btn = $('#playBtn');
-  if (playTimer){ clearInterval(playTimer); playTimer = null; }
-  st.forEach(x => x.classList.remove('lit'));
-  btn.classList.add('on'); btn.textContent = '▶ 播放中…';
-  let i = 0;
-  const tick = () => {
-    if (i > 0) st[i-1].classList.remove('lit');
-    if (i >= st.length){ clearInterval(playTimer); playTimer = null; btn.classList.remove('on'); btn.textContent = '▶ 走一遍（高亮整条链）'; return; }
-    st[i].classList.add('lit');
-    selectStep(st[i].dataset.node, {from:'repair', silent:true});
-    i++;
-  };
-  tick(); playTimer = setInterval(tick, 900);
-}
-
-/* ================= 详情卡 ================= */
-function copyBtn(text, id){
-  return `<button class="cp" data-copy="${id}">复制</button>`;
-}
-function bindCopy(root, text){
-  const btn = root.querySelector('[data-copy]');
-  if (!btn) return;
-  btn.addEventListener('click', () => {
-    const done = m => { const o = btn.textContent; btn.textContent = m; btn.classList.add('ok');
-      setTimeout(() => { btn.textContent = o; btn.classList.remove('ok'); }, 1300); };
-    const fallback = () => {
-      const pre = root.querySelector('pre');
-      try {
-        const r = document.createRange(); r.selectNodeContents(pre);
-        const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
-        done('已选中 · Ctrl+C');
-      } catch (err) { done('复制失败'); }
-    };
-    if (navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(text).then(() => done('已复制')).catch(fallback);
-    } else fallback();
-  });
-}
-
-function renderDetail(){
-  const d = $('#detail');
-  if (state.step){
-    const s = byId[state.step];
-    const fs = filesOfStepSorted(s.id);
-    const rel = (F_OF[s.id] || []).map(id => FIND.find(f => f.id === id)).filter(Boolean);
-    const dirTag = {read:'读', write:'写', run:'运行'};
-    d.innerHTML = `
-      <div class="dhead">
-        <div class="did ${actorCls(s.actor)}">${s.id}</div>
-        <div>
-          <div class="dtitle">${esc(s.label)}</div>
-          <div class="dsub">
-            <span class="tag ${actorVar(s.actor) === 'person' ? 'p' : actorVar(s.actor) === 'mixed' ? 'm' : 'h'}">${esc(s.actor)}</span>
-            <span class="tag">${esc(s.freq)}</span>
-            <span class="tag">${s.branch === 'main' ? '主线' : s.branch === 'side' ? '旁支 · 独立轨道' : '旁支 · 条件触发'}</span>
-          </div>
-        </div>
-      </div>
-      <table class="kv">
-        <tr><th>脚本</th><td class="mono">${esc(s.script)}</td></tr>
-        <tr><th>频次</th><td>${esc(s.freq)}</td></tr>
-        <tr><th>退出码</th><td class="mono">${esc(s.exit)}</td></tr>
-        <tr><th>红了走哪</th><td>${esc(s.on_red)}</td></tr>
-      </table>
-      <div class="cmdbox"><pre>${esc(s.cmd)}</pre>${copyBtn(s.cmd, s.id)}</div>
-      <div class="sect">读什么</div>
-      <ul class="plain">${s.reads.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
-      <div class="sect">写什么</div>
-      <ul class="plain">${s.writes.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
-      <div class="sect">注意</div>
-      <div class="note">${esc(s.note)}</div>
-      <div class="sect">这时参与的文件（${fs.length}）</div>
-      ${fs.length ? `<div class="hits">${fs.map(x => `<span class="hit ${DIRCLS[x.dir]}" data-goto="${esc(x.f.path)}">${esc(x.f.path)}<span class="dd">${DIRLAB[x.dir]}${x.all ? '·全程' : ''}</span></span>`).join('')}</div>`
-        : `<div style="font-size:12.5px;color:var(--mut)">此步没有 harness 文件参与 —— 命令由人直接发起（<span class="mono">foamDictionary</span> 属系统工具）。</div>`}
-      ${rel.length ? `<div class="sect">相关实测发现</div><div class="fref">${rel.map(f => `<div class="fr"><b>${f.id}</b> ${esc(f.claim)}</div>`).join('')}</div>` : ''}
-    `;
-    bindCopy(d, s.cmd);
-    d.querySelectorAll('[data-goto]').forEach(el => el.addEventListener('click', () => selectFile(el.dataset.goto)));
-  } else if (state.file){
-    const f = FILES.find(x => x.path === state.file);
-    if (!f){ d.innerHTML = '<div class="ph">未选择节点。</div>'; return; }
-    const hits = fileHits(f);
-    d.innerHTML = `
-      <div class="dhead"><div style="flex:1">
-        <div class="dtitle mono" style="font-size:13.5px;word-break:break-all">${esc(f.path)}</div>
-        <div class="dsub"><span class="tag">${esc(f.kind)}</span><span class="tag ${f.in_package ? 's' : 'f'}">${f.in_package ? '发布包内' : '不进发布包'}</span><span class="tag">${esc(f.freq)}</span></div>
-      </div></div>
-      <table class="kv">
-        <tr><th>参与方式</th><td>${esc(f.mode)}</td></tr>
-        <tr><th>读</th><td>${esc(f.reads)}</td></tr>
-        <tr><th>写</th><td>${esc(f.writes)}</td></tr>
-      </table>
-      <div class="sect">被哪几个时刻碰过</div>
-      <ul class="plain">${hits.map(h => `<li><span class="mono">${esc(h.raw)}</span>${h.dir === 'none' ? ' —— 不在用户流程上' : ''}</li>`).join('')}</ul>
-      <div class="hits" style="margin-top:8px">${hits.filter(h => h.dir !== 'none').map(h => h.ids.map(id => `<span class="hit ${DIRCLS[h.dir]}" data-id="${id}">${id}<span class="dd">${DIRLAB[h.dir]}</span></span>`).join('')).join('')}</div>
-      <div class="sect">提示</div>
-      <div class="note">点上面的时刻标记会切回时间轴并定位到那一步；在时间轴里选一步，这里对应的卡片也会亮。</div>
-    `;
-    d.querySelectorAll('.hit[data-id]').forEach(el => el.addEventListener('click', () => selectStep(el.dataset.id, {from:'filemap'})));
+  const sm = $("#stackMode");
+  if (p.chains) {
+    sm.style.display = "";
+    sm.innerHTML = Object.keys(p.chains).map(k =>
+      `<option value="${k}"${k === state.mode ? " selected" : ""}>${esc(p.chains[k].label)}</option>`).join("") +
+      `<option value="full"${state.mode === "full" ? " selected" : ""}>--mode full（short + 恢复原值 + 全时程）</option>`;
   } else {
-    d.innerHTML = `<div class="ph"><b>右侧是详情卡。</b><br>点时间轴上的任意节点或旁支标记：这里显示<b>触发者 / 频次 / 逐字命令（可复制）/ 读什么 / 写什么 / 退出码 / 红了走哪条边 / note</b>。<br><br>点文件地图里的卡片：这里显示该文件被哪几个时刻碰过。</div>`;
+    sm.style.display = "none";
+    sm.innerHTML = "";
   }
+
+  $("#stackEv").className = "ev " + evCls(p.evidence);
+  $("#stackEv").textContent = EVTXT[p.evidence] + " · " + p.script;
+
+  const nodes = buildStack(p);
+  const entries = nodes.reduce((a, n) => a + n.count, 0);
+  const io = { none: 0, read: 0, write: 0 };
+  nodes.forEach(n => { const f = fnOf(p, n.fn); io[(f && f.io) || "none"] += n.count; });
+  const ioTotal = io.read + io.write;
+
+  $("#stackStats").innerHTML = `
+    <div class="stat"><div class="sn">${entries}</div><div class="sl">次函数进入</div></div>
+    <div class="stat"><div class="sn">${nodes.length}</div><div class="sl">个节点（重复调用已合并）</div></div>
+    <div class="stat ${ioTotal ? "r" : "z"}"><div class="sn">${ioTotal}</div><div class="sl">次碰文件系统</div></div>
+    <div class="stat r"><div class="sn">${io.read}</div><div class="sl">读</div></div>
+    <div class="stat w"><div class="sn">${io.write}</div><div class="sl">写</div></div>
+    <div class="stat z"><div class="sn">${io.none}</div><div class="sl">无 IO</div></div>`;
+
+  $("#stackBanner").innerHTML = p.stackNote ? md(p.stackNote) : "";
+  $("#stackBanner").style.display = p.stackNote ? "" : "none";
+
+  $("#stack").innerHTML = nodes.map(n => {
+    const f = fnOf(p, n.fn);
+    const ioc = (f && f.io) || "none";
+    const lineTxt = f && f.line ? ":" + esc(f.line) : "行号未给";
+    return `<div class="snode io-${ioc}"><div class="sbox">
+      <div>
+        <span class="sfn">${esc(n.fn)}</span>
+        <span class="sline ${f && f.line ? "" : "noline"}">${lineTxt}</span>
+        ${n.arg ? `<span class="sarg">${esc(n.arg)}</span>` : ""}
+        ${n.count > 1 ? `<span class="sdup">×${n.count}</span>` : ""}
+        <span class="sio ${ioc}">${ioc === "none" ? "无 IO" : (ioc === "read" ? "读" : "写")}</span>
+      </div>
+      ${f && f.what ? `<div class="swhat">${md(f.what)}</div>` : ""}
+    </div></div>`;
+  }).join("");
+
+  const total = chainOf(p).length;
+  $("#stackFoot").innerHTML = `序列共 <b style="color:#b9cce0">${total}</b> 个进入项，合并后 ${nodes.length} 个节点；
+    IO 标记的含义：<span style="color:#a3e0bd">读</span> = 这一步读磁盘，<span style="color:#f4c67f">写</span> = 写磁盘，
+    <span style="color:#7c8b9d">无 IO</span> = 只算内存。标记是按「这个函数负责哪件事」归的，不是逐个 syscall 数出来的。<br>
+    标 <code>行号未给</code> 的层，是 MD 只给了函数名、没给行号与作用 —— 这里就只显示名字，不补不猜。`;
 }
 
-/* ================= 交互 ================= */
-function paint(){
-  $$('.node').forEach(n => n.classList.toggle('sel', n.dataset.id === state.step));
-  $$('#rail .chip, #sidechips .chip').forEach(c => c.classList.toggle('sel', c.dataset.id === state.step));
-  const stepFilesSet = state.step ? filesOfStepSorted(state.step).map(x => x.f.path) : null;
-  const hitIds = state.file ? (() => {
-    const f = FILES.find(x => x.path === state.file); if (!f) return null;
-    const s = new Set(); fileHits(f).forEach(h => h.ids.forEach(i => s.add(i))); return s;
-  })() : null;
-  $$('.node').forEach(n => {
-    n.classList.toggle('hit', !!(hitIds && hitIds.has(n.dataset.id)));
-    n.classList.toggle('dim', !!(hitIds && !hitIds.has(n.dataset.id)));
-  });
-  $$('.fcard').forEach(c => {
-    const on = stepFilesSet ? stepFilesSet.includes(c.dataset.path) : false;
-    c.classList.toggle('hitcard', on);
-    c.classList.toggle('sel', c.dataset.path === state.file);
-    c.classList.toggle('dim', !!(stepFilesSet && stepFilesSet.length && !on));
-  });
-  if (state.step && state.view === 'timeline'){
-    const el = $(`.node[data-id="${state.step}"]`) || $(`.chip[data-id="${state.step}"]`);
-    if (el) el.scrollIntoView({block:'nearest', inline:'center', behavior:'smooth'});
-  }
+/* ================= ④ 取证 ================= */
+function renderForensic() {
+  $("#findingList").innerHTML = FLOW.findings.map(f => `
+    <div class="fitem">
+      <div><span class="fid">${f.id}</span><span class="claim">${md(f.claim)}</span></div>
+      <div class="ev2">${md(f.evidence)}</div>
+    </div>`).join("");
+
+  $("#checkList").innerHTML = FLOW.checks.map((c, i) => `
+    <div class="chk">
+      <div class="ct">${esc(c.t)}</div>
+      <div class="cmdbox"><pre>${esc(cmdText(c.cmd))}</pre><button class="cp" type="button">复制</button></div>
+      <div class="ce">期望：${md(c.expect)}</div>
+    </div>`).join("");
+
+  $("#qaList").innerHTML = FLOW.qa.map(q => `
+    <div class="qa ${q.cls || ""}">
+      <div class="qq">${md(q.q)}</div>
+      <div class="aa">${md(q.a)}</div>
+    </div>`).join("");
+
+  $("#fCnt").textContent = FLOW.findings.length;
+  $("#cCnt").textContent = FLOW.checks.length;
+  $("#qCnt").textContent = FLOW.qa.length;
 }
 
-function setHash(){
-  let h = '';
-  if (state.view === 'filemap' && state.file) h = 'file:' + state.file;
-  else if (state.step) h = state.step;
-  else h = state.view;
-  try { history.replaceState(null, '', '#' + encodeURIComponent(h)); } catch (e) {}
+/* ================= 视图 / hash / 键盘 ================= */
+function setHash() {
+  let h = state.view;
+  if (state.view === "procs" || state.view === "stack") {
+    h += "/" + state.proc;
+    if (state.view === "stack" && PIDX[state.proc] && PIDX[state.proc].chains && state.mode !== "full") h += "/" + state.mode;
+  }
+  try { history.replaceState(null, "", "#" + h); } catch (e) { }
 }
-function readHash(){
-  const raw = decodeURIComponent(location.hash.replace(/^#/, ''));
-  if (!raw) return;
-  if (raw.indexOf('file:') === 0){ showView('filemap', true); selectFile(raw.slice(5), {silent:true}); return; }
-  if (byId[raw]){ showView('timeline', true); selectStep(raw, {silent:true}); return; }
-  if (['timeline','filemap','repair'].includes(raw)) showView(raw, true);
+function normPid(x) {
+  if (!x) return null;
+  const s = String(x).toUpperCase().replace(/^T/, "P");
+  return PIDX[s] ? s : null;
 }
-function selectStep(id, opt){
-  opt = opt || {};
-  state.step = id; state.file = null;
-  if (opt.from === 'filemap') showView('timeline', true);
-  if (!opt.silent) setHash(); else setHash();
-  paint(); renderDetail(); renderStrip();
+function readHash() {
+  const raw = decodeURIComponent(location.hash.replace(/^#/, ""));
+  if (!raw) return false;
+  const parts = raw.split("/");
+  if (!["entry", "procs", "stack", "forensic"].includes(parts[0])) return false;
+  state.view = parts[0];
+  const pid = normPid(parts[1]);
+  if (pid) state.proc = pid;
+  if (parts[2] && ["check", "short", "full"].includes(parts[2])) state.mode = parts[2];
+  return true;
 }
-function selectFile(path, opt){
-  opt = opt || {};
-  state.file = path; state.step = null;
-  if (!opt.silent) setHash();
-  paint(); renderDetail(); renderStrip();
+function paint() {
+  $$(".view").forEach(s => s.classList.toggle("on", s.id === "view-" + state.view));
+  $$("nav.tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.view === state.view)));
+  if (state.view === "procs") { highlightRail(); renderDetail(); }
+  if (state.view === "stack") renderStack();
 }
-const MOUNT = {timeline:'#mount-timeline', filemap:'#mount-filemap', repair:'#mount-repair'};
-function showView(v, silent){
+function go(v, silent) {
+  const changed = state.view !== v;
   state.view = v;
-  const d = $('#detail'), m = $(MOUNT[v]);
-  if (d && m && d.parentElement !== m) m.appendChild(d);
-  $$('nav.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.view === v)));
-  $$('.view').forEach(s => s.classList.toggle('on', s.id === 'view-' + v));
-  if (!silent) setHash(); else setHash();
-  if (v === 'timeline') requestAnimationFrame(drawEdges);
-  if (v === 'filemap') paint();
+  paint();
+  if (changed) window.scrollTo(0, 0);
+  if (!silent) setHash();
+}
+function selProc(id, silent) {
+  if (!PIDX[id]) return;
+  state.proc = id;
+  if (state.view !== "procs" && state.view !== "stack") state.view = "procs";
+  if (!PIDX[id].chains) state.mode = "full";
+  paint();
+  if (!silent) setHash();
 }
 
-/* ================= 键盘 ================= */
-document.addEventListener('keydown', e => {
-  if (e.target.matches('input,textarea,select')) return;
-  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-  const i = ORDER.indexOf(state.step);
-  let j = i < 0 ? 0 : i + (e.key === 'ArrowRight' ? 1 : -1);
-  if (j < 0) j = 0; if (j >= ORDER.length) j = ORDER.length - 1;
-  e.preventDefault();
-  if (state.view !== 'timeline') showView('timeline');
-  selectStep(ORDER[j], {silent:true});
-});
+function boot() {
+  renderEntry();
+  renderProcs();
+  renderForensic();
 
-/* ================= 启动 ================= */
-function boot(){
-  renderFindings();
-  renderTimeline();
-  renderFilemap();
-  renderRepair();
-  renderStrip();
-  renderDetail();
-  $('#expandBtn').addEventListener('click', () => { $('#rail').classList.toggle('expanded'); requestAnimationFrame(drawEdges); });
-  $('#playBtn').addEventListener('click', playChain);
-  $$('nav.tabs button').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
-  $('#ftGen').textContent = FLOW.meta.generated_at;
-  $('#ftHost').textContent = FLOW.meta.host;
-  $('#ftSrc').textContent = FLOW.meta.src;
-  window.addEventListener('resize', () => { if (state.view === 'timeline') drawEdges(); });
-  window.addEventListener('hashchange', readHash);
-  readHash();
-  requestAnimationFrame(drawEdges);
-  setTimeout(drawEdges, 220);
+  document.addEventListener("click", e => {
+    const card = e.target.closest(".pcard[data-id]");
+    if (card) { selProc(card.dataset.id); return; }
+    const g = e.target.closest("[data-goto]");
+    if (g) { selProc(g.dataset.goto); return; }
+    const gs = e.target.closest("[data-stack]");
+    if (gs) { state.proc = gs.dataset.stack; state.mode = "full"; go("stack"); return; }
+    const tb = e.target.closest("nav.tabs button[data-view]");
+    if (tb) { go(tb.dataset.view); return; }
+  });
+
+  document.addEventListener("keydown", e => {
+    const t = e.target;
+    if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+    if (["1", "2", "3", "4"].includes(e.key)) {
+      go(["entry", "procs", "stack", "forensic"][parseInt(e.key, 10) - 1]);
+      e.preventDefault(); return;
+    }
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    const i = P_ORDER.indexOf(state.proc);
+    let j = i < 0 ? 0 : i + (e.key === "ArrowRight" ? 1 : -1);
+    j = Math.max(0, Math.min(P_ORDER.length - 1, j));
+    e.preventDefault();
+    if (state.view !== "procs" && state.view !== "stack") state.view = "procs";
+    selProc(P_ORDER[j]);
+  });
+
+  $("#stackProc").addEventListener("change", e => {
+    state.proc = e.target.value;
+    if (!PIDX[state.proc].chains) state.mode = "full";
+    renderStack(); setHash();
+  });
+  $("#stackMode").addEventListener("change", e => {
+    state.mode = e.target.value;
+    renderStack(); setHash();
+  });
+  window.addEventListener("hashchange", () => { if (readHash()) paint(); });
+
+  if (!readHash()) { state.view = "entry"; state.proc = "P2"; }
+  paint();
+  setHash();
 }
-document.addEventListener('DOMContentLoaded', boot);
+document.addEventListener("DOMContentLoaded", boot);
 
 </script>
 </body>
