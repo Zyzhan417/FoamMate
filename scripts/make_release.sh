@@ -180,7 +180,10 @@ FORBIDDEN_EXACT=("AGENTS.md" "STATUS.md" "README.md" "CHANGELOG.md"
                  "scripts/make_export.sh" "scripts/verify_export.py"
                  # 部署/更新器：依赖 .git，发布包（无 .git）里必然不可用，故不进包。
                  # 登记在这里是为了让「scripts/ 下有白名单未收录的文件」这条源树检查认得它。
-                 "scripts/deploy.py")
+                 "scripts/deploy.py"
+                 # 自包含 skill 组装器：把 harness 打成「复制即用」的 skill 目录（Hermes/Codex）。
+                 # 它复用本脚本的白名单，不另列清单；属维护侧工具，不进发布包，故在此登记。
+                 "scripts/make_skill.sh")
 
 is_forbidden() {
     local rel="$1"
