@@ -202,6 +202,30 @@ python3 "$HARNESS/scripts/deploy.py" --action status --fetch
 `90`–`94` 是自留区间（全仓已用到 `89`）。`deploy.py` **不进发布包**——发布包没有 git 元数据，
 更新无从谈起；它只服务「从仓库部署」这条路。
 
+### 部署成 skill（给 Hermes / Codex 调用）
+
+想让别的 agent 直接调用这套 harness（而不是人手动敲命令），用 `scripts/make_skill.sh` 把它组装成
+一个**自包含的 skill 目录**，复制到对应软件的 skills 路径即用：
+
+```bash
+bash scripts/make_skill.sh --target hermes   # 装到 ~/.hermes/skills/foam-mate/
+bash scripts/make_skill.sh --target codex    # 装到 ~/.codex/skills/foam-mate/
+bash scripts/make_skill.sh --target both     # 两处都装
+bash scripts/make_skill.sh --dest /tmp/x     # 只出目录、不安装
+```
+
+产物是 `foam-mate/`：一张入口卡 `SKILL.md`（短指针卡，告诉 agent `$HARNESS` 在哪、三条铁律、
+命令骨架、何时停下）+ `scripts/`（10 个用户面脚本）+ `references/`（三份完整文档，其中
+`SKILL.md` 是完整判据与退出码全表）+ `VERSION` + `LICENSE`。
+
+**入口卡不是 `references/SKILL.md` 的裁剪版。** 入口卡是 `make_skill.sh` 里手写的几十行指针卡，
+完整判据在 `references/SKILL.md`（比入口卡长得多）。两者是两份独立文件——复制 skill 后看到入口卡
+那么短是设计，别当成内容被截掉。
+
+`make_skill.sh` 复用 `make_release.sh` 的 `WL_SRC`/`WL_DST` 白名单出文件清单（不另列第二份），
+并把 `references/SKILL.md` 的 YAML frontmatter 剥掉——避免 Codex 递归扫描 skills 树时把
+`name: openfoam-v13-case-harness` 当成与 foam-mate 并列的第二条同名 skill。
+
 ## 设计原则（三条）
 
 1. **LLM 做翻译与决策，脚本做判定与调度。** 写字典是文本工作；但「能否运行」必须由命令输出判定。

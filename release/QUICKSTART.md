@@ -10,6 +10,13 @@
 >
 > 关于包内路径：本包解出来后，`SKILL.md`、`QUICKSTART.md`、`SCOPE.md` 与 `scripts/` **同级**，
 > 没有 `release/` 这一层。本文所有命令用 `$HARNESS` 指代包根，不要写死任何机器上的路径。
+>
+> **两种分发形态**：上面说的是**发布包**（`make_release.sh` 产物，三份 md 与 `scripts/` 平级，
+> 包根的 `SKILL.md` 就是完整文档）。若你是在一个 **skill 目录**里读到本文（仓库侧的
+> `make_skill.sh` 产物，供 Hermes/Codex 调用），布局不同：上层 `SKILL.md` 是几十行的**入口卡**
+> （短指针卡），完整文档在 `references/SKILL.md`，本文在 `references/QUICKSTART.md`。两种形态的
+> `scripts/` 内容一致、命令不变；唯一区别是入口卡短、完整判据在 `references/` 里——别把入口卡
+> 当成被裁剪的完整文档。
 
 如果你还没读过入口文档，先读 `SKILL.md`。本文只演示"照着做"，不解释为什么。
 

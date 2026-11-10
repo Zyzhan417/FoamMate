@@ -3,7 +3,10 @@
 #
 # 产物（skill 目录本身就是 $HARNESS，不依赖任何项目/部署路径）：
 #   foam-mate/
-#     SKILL.md          入口卡（$HARNESS = 本目录；description <= 60 字符，Hermes/Codex 都认）
+#     SKILL.md          入口卡（$HARNESS = 本目录；description <= 60 字符，Hermes/Codex 都认）。
+#                       注意：它是下面 heredoc 里**手写**的短指针卡，不是 references/SKILL.md 裁来的——
+#                       两者是两份独立内容、长度不同。复制 skill 时入口卡只有几十行是设计：完整判据、
+#                       命令全文、退出码全表都在 references/SKILL.md。
 #     scripts/          10 个脚本（复用 make_release.sh 的白名单，含 preflight.sh）
 #     references/       三份 harness 文档（release/SKILL.md 原样放这里，名字不变靠子目录避撞；
 #                       其 YAML frontmatter 被去掉，避免 Codex 递归索引当成第二个 skill）
@@ -145,9 +148,9 @@ description: "Use when 把自然语言 CFD 需求做成 v13 可跑 case。"
 本 skill 目录**自带**全部脚本与文档，`$HARNESS` 就是本目录，不依赖任何项目仓库或部署路径。
 把它复制到 Hermes（`~/.hermes/skills/foam-mate/`）或 Codex（`~/.codex/skills/foam-mate/`）即生效。
 
-**本卡不复述判据。** 判据、命令全文、退出码全表在 `references/SKILL.md`（完整 harness 文档），
-动手前必读，冲突以它为准。`references/QUICKSTART.md` 是完整可复现例子，`references/SCOPE.md`
-是能做/不能做与许可。
+**本卡不复述判据，也不是被裁剪的短版——它是独立手写的指针卡。** 判据、命令全文、退出码全表在
+`references/SKILL.md`（完整 harness 文档，比本卡长得多，这是设计），动手前必读，冲突以它为准。
+`references/QUICKSTART.md` 是完整可复现例子，`references/SCOPE.md` 是能做/不能做与许可。
 
 ## Step 0 — $HARNESS = 本卡所在目录（唯一需要记的）
 
