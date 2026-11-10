@@ -64,6 +64,15 @@
 
 ## 产品版本（`VERSION`）
 
+### 0.4.1 — 2026-11-10
+
+- 新增 `scripts/make_skill.sh`（仓库侧，**不进发布包**）：把 harness 组装成自包含的 skill
+  目录（`foam-mate/`：入口卡 + `scripts/` 10 个脚本 + `references/` 三份文档 + `VERSION` +
+  `LICENSE`），`--target hermes|codex|both` 复制到对应软件的 skills 路径即用，不再依赖项目
+  仓库或部署路径。文件清单复用 `make_release.sh` 的 `WL_SRC`/`WL_DST`（不另列第二份清单）。
+- `make_release.sh` 的 `FORBIDDEN_EXACT` 登记 `make_skill.sh`（维护侧工具，不进包，同
+  `deploy.py`）。发布包内容不变，仍是 15 个文件。
+
 ### 0.4.0 — 2026-11-02
 
 - 新增 `scripts/deploy.py`（仓库侧，**不进发布包**）：`--action install` 把仓库克隆到稳定路径
