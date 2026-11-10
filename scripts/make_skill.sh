@@ -212,7 +212,7 @@ ENTRY_CARD
 VIOL=0
 while IFS= read -r rel; do
     [ -n "$rel" ] || continue
-    [ -x "$SKILL/$rel" ] || { printf 'make_skill: 脚本缺可执行位: %s\n' "$rel" >&2; VIOL=1; }
+    [ -x "$SKILL/scripts/$rel" ] || { printf 'make_skill: 脚本缺可执行位: %s\n' "$rel" >&2; VIOL=1; }
 done < <(cd "$SKILL/scripts" && find . -type f | sed 's|^\./||' | LC_ALL=C sort)
 
 for need in SKILL.md VERSION references/SKILL.md references/QUICKSTART.md references/SCOPE.md; do
