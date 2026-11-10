@@ -1,6 +1,6 @@
 ---
 name: openfoam-v13-case-harness
-description: Use when 要把一句自然语言 CFD 需求变成一个能在本机 OpenFOAM v13 上跑通的 case 目录（派生 tutorial、改字典、跑求解、过五道门禁）。本 harness 只提供十个确定性命令行工具与一份文档：不含模型、不控流程，模型与循环由调用方提供。仅支持 OpenFOAM v13。
+description: Use when 要把一句自然语言 CFD 需求变成能在本机 OpenFOAM v13 上跑通的 case 目录。
 ---
 
 # OpenFOAM v13 case harness
