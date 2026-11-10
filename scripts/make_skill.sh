@@ -5,9 +5,11 @@
 #   foam-mate/
 #     SKILL.md          入口卡（$HARNESS = 本目录；description <= 60 字符，Hermes/Codex 都认）
 #     scripts/          10 个脚本（复用 make_release.sh 的白名单，含 preflight.sh）
-#     references/       三份 harness 文档（release/SKILL.md 原样放这里，名字不变靠子目录避撞）
+#     references/       三份 harness 文档（release/SKILL.md 原样放这里，名字不变靠子目录避撞；
+#                       其 YAML frontmatter 被去掉，避免 Codex 递归索引当成第二个 skill）
 #       SKILL.md QUICKSTART.md SCOPE.md
 #     VERSION           版本号（provenance）
+#     LICENSE           授权（条件复制：仓库根有 LICENSE 才带，同 make_release.sh）
 #
 # 为什么复用 make_release.sh 而不是再列一份文件清单：
 #   文件清单只许一处写值（AGENTS.md R14）。make_release.sh 的 WL_SRC/WL_DST 是权威；这里先
@@ -117,6 +119,19 @@ mv "$FLAT/SKILL.md" "$FLAT/QUICKSTART.md" "$FLAT/SCOPE.md" "$SKILL/references/" 
 mv "$FLAT/scripts/"* "$SKILL/scripts/" \
     || { printf 'make_skill: 移动脚本失败\n' >&2; exit "$EX_BUILD"; }
 cp "$FLAT/VERSION" "$SKILL/VERSION" 2>/dev/null || printf '%s\n' "$VERSION" > "$SKILL/VERSION"
+[ -f "$FLAT/LICENSE" ] && cp "$FLAT/LICENSE" "$SKILL/LICENSE"
+
+# 去掉 references/SKILL.md 的 YAML frontmatter（首尾两个 --- 连同 name/description 一起删），
+# 让它成为纯参考文档。原因：Codex 递归扫描 skills 树下每个 SKILL.md 并读其 frontmatter 的
+# name，release/SKILL.md 原样带着 `name: openfoam-v13-case-harness`，会让 Codex 把它当成与
+# foam-mate 并列的第二条同源 skill（实测 codex debug prompt-input 里出现两条）。
+# 只改生成副本，不动项目里的 release/SKILL.md。
+awk '
+    /^---$/ { if (++dash <= 2) next }
+    dash >= 2 { print }
+' "$SKILL/references/SKILL.md" > "$SKILL/references/SKILL.md.tmp" \
+    && mv "$SKILL/references/SKILL.md.tmp" "$SKILL/references/SKILL.md" \
+    || { printf 'make_skill: 去掉 references/SKILL.md frontmatter 失败\n' >&2; exit "$EX_BUILD"; }
 
 # ---------- 3. 写入口卡 ----------
 cat > "$SKILL/SKILL.md" <<'ENTRY_CARD'
