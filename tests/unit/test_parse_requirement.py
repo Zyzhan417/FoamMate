@@ -152,8 +152,6 @@ def test_a2_missing_boundary_is_null_not_default():
     spec, code = pr.run("一个方腔，水")
 
     assert spec["boundary"] is None
-    # 类型级：必须是 None，不是 0.0/False 之类的"空值"
-    assert spec["boundary"] is not 0.0 and spec["boundary"] is not False
 
     for forbidden in (0.01, 1.0, 0.0, "", " ", "0.01", "1.0", "0"):
         assert spec["boundary"] != forbidden, f"boundary 不许被填成 {forbidden!r}"

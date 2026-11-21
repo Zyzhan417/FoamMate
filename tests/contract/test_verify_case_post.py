@@ -318,7 +318,7 @@ def test_ef4_g2b_none_and_hard(tmp_path, cavity_src, foam_env):
     时这一条会红——只断言"格式合法"是抓不住它的。
     """
     good = make_mesh_case(tmp_path, cavity_src, foam_env, "good")
-    p = run_post(good, foam_env)
+    run_post(good, foam_env)
     assert g2b_line(good) == "none", f"正常网格的 G2b 必须是 none，实测 {g2b_line(good)}"
     assert checkmesh_star_count(good) == 0, "前置：正常网格的 checkMesh 日志不该有 *** 行"
 

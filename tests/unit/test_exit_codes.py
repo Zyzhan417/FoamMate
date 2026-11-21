@@ -53,6 +53,8 @@ SCRIPTS = [
     "msh2d_to_foam.py",
     # 二次开发模块同理：不给 --stage 就没有默认动作。
     "dev_lib.py",
+    # fix_case.py：无参数即用法错误（实测退 64），此前从未被这条契约覆盖。
+    "fix_case.py",
 ]
 
 EX_USAGE = 64
