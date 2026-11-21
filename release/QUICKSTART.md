@@ -55,12 +55,12 @@ OK commands PATH 中可用: foamRun foamDictionary blockMesh checkMesh
 OK tutorials /opt/openfoam13/tutorials 下 system/controlDict 共 252 个(>= 100)
 OK version WM_PROJECT_VERSION=13
 OK python3 python3 3.14.9 >= 3.9
-OK scripts 同目录 8 个用户面脚本均存在且可执行
+OK scripts 同目录 9 个用户面脚本均存在且可执行
 preflight: 6/6 项通过，环境就绪。
 ```
 
 > 两个数字不要混：「6/6 项」是**检查类别**有 6 类（bashrc / commands / tutorials / version /
-> python3 / scripts）；「8 个用户面脚本」是最后一类里检查了 8 个**文件**。两者不是一回事。
+> python3 / scripts）；「9 个用户面脚本」是最后一类里检查了 9 个**文件**。两者不是一回事。
 
 **`RC=0` 才继续。** 若 `RC=50`，照它末行给的 `source ...` 命令做完再跑一次；若 `RC=51`，
 你的 OpenFOAM 不是 v13，本 harness 到此为止（不支持别的版本）。

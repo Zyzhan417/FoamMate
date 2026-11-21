@@ -6,7 +6,7 @@
 #
 # 用法：  bash scripts/verify_references.sh [--frozen]
 #   --frozen  预注册已冻结，额外检查 bench/results.csv 的状态多样性（R12）
-# 退出码：0 全过 / 1 R9 / 2 R10 / 3 R11 / 4 R12 / 5 文档引用
+# 退出码：0 全过 / 1 有违规（逐门打印，见上面各条的 violation 行）
 #
 # 纪律（踩过的坑，别改回去）：
 #   - 不用 set -e：本脚本中段有预期返回非零的检查，set -e 会静默截断后面全部检查。

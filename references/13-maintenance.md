@@ -124,7 +124,7 @@
 全局命令集（顺序跑；含两层测试）：
 
 ```bash
-bash scripts/verify_references.sh --frozen        # 11 道门
+bash scripts/verify_references.sh --frozen        # 全部门一次跑完（门数见脚本内 report 调用）
 python3 scripts/status_snapshot.py --check        # STATUS 机器段
 python3 scripts/check_release_docs.py             # release/ 契约
 python3 scripts/check_contracts.py --results bench/results.csv
@@ -188,6 +188,11 @@ grep -n "PACKAGE_SCRIPTS = {" -A12 tests/contract/test_make_release.py
 - 选项 A：抽一份单一清单（如 `scripts/clis.txt`），七处改为派生 + 断言；代价：一次设计 + 7 处改造 + 4 个测试文件。
 - 选项 B：保持现状，把「7 处」写进本文（已写），并给 `test_portability` 补 `batch.py`（**已于 2026-10-31 修**）；代价：仍要改 7 处，其中两处（usage 文字、README 计数）漏改不会被抓红。
 
+**封堵进展**：`tests/unit/test_script_inventory.py` 以 `WL_SRC` 为权威逐份比对 #1 / #4 / #5 / #7
+与 README、`release/*.md` 的计数；#3 用包含关系封（豁免 `preflight.sh`，它的默认动作是跑检查）。
+仍无门的是 #6 `KNOWN_EXIT_CODES`（退出码集合，不是脚本清单，已由 `test_exit_codes.py` 覆盖）
+与 #2 `WL_DST`（与 `WL_SRC` 平行，由 `make_release.sh` 的组装检查守）。
+
 ### M-2 README 的事实没有任何门盯着
 
 `scripts/check_release_docs.py:146` 用 `doc_dir.glob("*.md")`，只扫 `release/`。根 `README.md` 不在覆盖面；
@@ -210,13 +215,10 @@ grep -n "PACKAGE_SCRIPTS = {" -A12 tests/contract/test_make_release.py
 - 选项 A（建议但需批准）：改 `time.monotonic()` + 补一条不依赖时钟的单测（monkeypatch `time.time` 回退）。
 - 选项 B：保留并按「已知偶发」登记；代价：契约层随机变红会被训练成「重跑就好」（N7 第 18 条的危害）。
 
-### M-4 `scripts/verify_references.sh` 头部退出码说明与实现不符
+### M-4 `scripts/verify_references.sh` 的退出码说明
 
-`scripts/verify_references.sh:9` 写「0 全过 / 1 R9 / 2 R10 / 3 R11 / 4 R12 / 5 文档引用」，
-实现里所有违规都累加到同一个 `fail`，实测只可能退 0 或 1。
-
-- 选项 A：改说明为「0 全过 / 1 有违规（逐门打印）」。
-- 选项 B：实装分码；前置是先确认没有下游依赖这组码（它是 11 道门的总闸）。
+头部与实现已对齐：`0` 全过 / `1` 有违规（逐门打印）。实现仍是「所有门累加到同一个 `fail`，
+**不按门分码**」——它是全仓门禁的总闸，分码会让下游把「某一门红」当成可忽略的局部失败。
 
 ### M-5 无门计数仍在两处
 
