@@ -122,11 +122,11 @@ python3 scripts/fix_case.py --case ./my-case --error-log ./my-case/log.shortRun 
 
 ```
 scripts/        10 个用户面 CLI（需求解析 / 检索 / 派生 / 网格转换 / 求解 / 门禁 / 修复 / 前置检查 / 批量 / 二次开发）
-                另含 8 个维护侧脚本（打包、导出树、部署更新、文档契约、项目门禁、状态快照…）
+                另含维护侧脚本（打包、导出树、部署更新、文档契约、项目门禁、状态快照、skill 组装；清单口径见 scripts/make_release.sh 的 WL_SRC）
 release/        对外交付内容源：SKILL.md（入口）+ QUICKSTART.md + SCOPE.md
 tests/          两级测试：unit（零 OpenFOAM）+ contract（需真求解），判据 failed=0
 bench/          跨任务基准框架：预注册方法学 + 12 个任务定义 + 七态判定器 + 断言库
-references/     调研笔记、设计依据与实跑报告（00–14，含文档维护规则）+ 第三方参考库登记表（registry.csv）
+references/     调研笔记、设计依据与实跑报告（00–15，含文档维护规则；15 是链路科普件）+ 第三方参考库登记表（registry.csv）
 AGENTS.md       项目规则：15 条（10 条硬规则 + 5 条工程约定），R1「源码事实必须 grep」是起点
 LICENSE         MIT
 ```
@@ -135,7 +135,7 @@ LICENSE         MIT
 
 `references/00`–`14` 是为什么这样设计的完整依据：内部说明、领域调研、逐个项目的架构分析、
 证据分级、交叉矩阵、部件清单、理论溯源、交付形态选择、文档维护结构、基准实跑报告、二次开发流程。**它们不是产品的一部分**，
-读它们能得到「为什么」，跑起来只需要 `scripts/` + `release/`。
+读它们能得到「为什么」，跑起来只需要 `scripts/` + `release/`。另有 `references/15-harness-flow.md`（+ 同名 HTML 交互版）把整条链路讲给使用者看，属科普件、不是设计依据。
 
 `references/external/` 收录了几篇公开的方法论文章（Anthropic《Building effective agents》与
 《Writing effective tools for agents》与《Agent Skills》、OpenAI《A practical guide to building agents》、

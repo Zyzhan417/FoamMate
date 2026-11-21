@@ -181,7 +181,7 @@ grep -n "PACKAGE_SCRIPTS = {" -A12 tests/contract/test_make_release.py
   `scripts/dev_lib.py` 走 argparse，只打 `dev_lib.py: error: the following arguments are required:
   --stage`（无 usage 块），而它点名了缺哪个参数——语义上比 usage 块更直接。
 
-`README.md:123` 的计数已随 v0.3 改成 10 个（仍是文字、仍无断言，见 M-2）。
+`README.md:124` 的计数已随 v0.3 改成 10 个（仍是文字、仍无断言，见 M-2）。
 「七处」的算法：`make_release.sh` 的两个平行数组算一处；第 7 处是上面那句 usage 文字，它只是文字、
 没有断言。
 
@@ -196,6 +196,10 @@ grep -n "PACKAGE_SCRIPTS = {" -A12 tests/contract/test_make_release.py
 
 - 选项 A：把 README 纳入 `check_release_docs.py`（需要为「陈述」设计可判定判据，不能只判引用）。
 - 选项 B：接受无门，改 README 时必须跑 `grep` 自查 + 在轮次段记一条。代价：靠人。
+
+**已复发两次**，`references` 编号范围（`15-harness-flow.md` 加入后未同步、README 仍写 00–14）
+与「维护侧脚本个数」（写成 8、实测 9；现改为指向 `WL_SRC` 不写数）都属本节这一类。
+根因未变（见本节首段），这就是选 A（给 README 装门）而不是选 B（靠人自查）的证据。
 
 ### M-3 P-01：`scripts/batch.py` 用非单调墙钟
 
