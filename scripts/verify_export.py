@@ -57,7 +57,6 @@ import argparse
 import csv
 import os
 import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -231,7 +230,6 @@ def gate_e1(root: Path, files: list[str], links: list[str]) -> tuple[int, list[s
 
     # 顶层：目录与文件都必须落在闭合集合里
     for entry in sorted({rel.split("/")[0] for rel in files}):
-        is_dir = "/" in "".join(r for r in files if r.split("/")[0] == entry)
         top = root / entry
         if top.is_dir():
             if entry not in ALLOWED_TOP_DIRS:

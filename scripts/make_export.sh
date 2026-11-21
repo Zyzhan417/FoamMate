@@ -2,7 +2,7 @@
 # scripts/make_export.sh —— 公开导出树组装器（M5 · 发布边界落地物）
 #
 # 与 make_release.sh 的区别（两个不同的对象，别混）：
-#   make_release.sh → 给**使用者**的 12 文件工具包（dist/），只含 6 个用户面脚本 + 3 份文档；
+#   make_release.sh → 给**使用者**的工具包（dist/），只含用户面脚本 + 3 份文档（清单见 WL_SRC）；
 #   make_export.sh  → 给**开发者/审阅者**的完整仓库树，含 scripts/ tests/ bench/ references/ release/。
 #   前者是产品，后者是源码。它们各自有独立的白名单与自检，不共享清单。
 #
