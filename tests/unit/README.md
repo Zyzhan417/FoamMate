@@ -10,7 +10,15 @@
 
     for py in $(which -a python3); do $py -c "import pytest" 2>&1 | head -1; done
 
-## 期望 `failed=0`（<5 s）
+**开发循环用 33 s 那条**：`test_export.py::test_export_tree_passes_all_six_gates` 一个人占约 60 s
+（它从 HEAD 组导出树、再在树内跑一遍全量 pytest），全量因此 81–85 s。日常改动用：
+
+    <装有 pytest 的解释器> -m pytest tests/unit -q \
+        --deselect tests/unit/test_export.py::test_export_tree_passes_all_six_gates
+
+**提交前必须跑全量**：被 deselect 的那条是「交付物真能跑」的唯一端到端证据，不许从提交路径里消失。
+
+## 期望 `failed=0`
 
 **本文不记测试项数**：项数随新增用例变化，记在这里必然腐坏（曾经记过的数字已与实测不符）。
 判据是命令输出里的 `failed=0`；要当前项数就自己跑 `--collect-only -q | tail -1`。
@@ -30,8 +38,11 @@
 | `test_bench_runner.py` | bench runner 的三处静默错误：任务解析 / 多例展开 / L2 归约不得把 `undeterminable` 折成 pass |
 | `test_script_entrypoints.py` | **跨模块**：`scripts/` 下每个带 shebang 的文件 — 存在、有可执行位、能直接启动（不看退出码） |
 | `test_exit_codes.py` | **跨模块**：用法错误恒退 `64` 且写 stderr（不能用 `2`，`2` 是 G2 门失败） |
+| `test_script_inventory.py` | **跨模块**：脚本清单以 `make_release.sh` 的 `WL_SRC` 为唯一权威，逐份比对 preflight 的 `USER_SCRIPTS` 与 usage 文字、`USER_FACING`、`PACKAGE_SCRIPTS`、`SCRIPTS`、README 与 `release/*.md` 的计数 |
 
-后两个文件是**横切契约**，按「类」遍历 `scripts/` 而不是列举文件名——新增脚本自动被覆盖。
+后四个文件是**横切契约**，按「类」而不是「某个文件」判定：入口与退出码那两条遍历 `scripts/`，
+新增脚本自动被覆盖；`test_script_inventory.py` 以 `WL_SRC` 派生期望集合，白名单加脚本时
+不用记得回来改它。
 
 ## 为什么本层不需要 OpenFOAM
 
